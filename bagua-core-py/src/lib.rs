@@ -259,7 +259,7 @@ impl BaguaBucketPy {
 
     pub fn append_python_op(&mut self, op: &PyAny) -> PyResult<()> {
         assert!(op.is_callable(), "python op should be a callable");
-        self.inner.append_python_op(Arc::new(op.into_py(op.py())));
+        self.inner.append_python_op(op.into_py(op.py()));
         Ok(())
     }
 

@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct PythonFFIOp {
-    pub py_callable: Arc<pyo3::Py<pyo3::PyAny>>,
+    pub py_callable: pyo3::Py<pyo3::PyAny>,
 }
 
 impl CommOpTrait for PythonFFIOp {

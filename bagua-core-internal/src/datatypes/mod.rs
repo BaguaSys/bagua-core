@@ -864,7 +864,7 @@ impl BaguaBucket {
         self.inner.lock().comm_ops.push(comm_op);
     }
 
-    pub fn append_python_op(&mut self, op: Arc<pyo3::Py<pyo3::PyAny>>) {
+    pub fn append_python_op(&mut self, op: pyo3::Py<pyo3::PyAny>) {
         let comm_op: Arc<dyn CommOpTrait + Send + Sync> = Arc::new(PythonFFIOp { py_callable: op });
         self.inner.lock().comm_ops.push(comm_op);
     }
