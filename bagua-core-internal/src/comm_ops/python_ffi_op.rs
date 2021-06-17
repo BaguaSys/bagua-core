@@ -3,6 +3,7 @@ use crate::communicators::BaguaCommunicator;
 use crate::datatypes::{BaguaBucket, BaguaTensorRaw};
 use crate::resource_pool::CUDA_DEVICE_MEMORY_POOL;
 use crate::BaguaCommOpChannels;
+use pyo3::Python;
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -16,8 +17,8 @@ impl CommOpTrait for PythonFFIOp {
         bucket: Arc<BaguaBucket>,
         _comm_op_channels: &BaguaCommOpChannels,
     ) {
-        pyo3::Python::with_gil(|gil| {
-            let result = self.py_callable.call1(gil, (bucket.name.as_str(),));
+        Python::with_gil(|python| {
+            let result = self.py_callable.call1(python, (bucket.name.as_str(),));
             if let Err(e) = result {
                 tracing::error!("python ffi op error: {:?}", e);
             }

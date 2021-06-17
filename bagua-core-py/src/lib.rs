@@ -199,9 +199,8 @@ impl BaguaCommBackendPy {
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
-    pub fn wait_pending_comm_ops(&self) -> PyResult<usize> {
-        self.inner
-            .wait_pending_comm_ops()
+    pub fn wait_pending_comm_ops(&self, py: Python) -> PyResult<usize> {
+        py.allow_threads(|| self.inner.wait_pending_comm_ops())
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
@@ -217,9 +216,8 @@ impl BaguaCommBackendPy {
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
-    pub fn wait_pending_post_backward_comm_ops(&self) -> PyResult<usize> {
-        self.inner
-            .wait_pending_post_backward_comm_ops()
+    pub fn wait_pending_post_backward_comm_ops(&self, py: Python) -> PyResult<usize> {
+        py.allow_threads(|| self.inner.wait_pending_post_backward_comm_ops())
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 }
