@@ -12,29 +12,14 @@ import tempfile
 import urllib.request
 from tqdm import tqdm
 
-
-_nccl_records = []
 library_records = {}
-
-
-class DownloadProgressBar(tqdm):
-    def update_to(self, b=1, bsize=1, tsize=None):
-        if tsize is not None:
-            self.total = tsize
-        self.update(b * bsize - self.n)
-
-
-def download_url(url, output_path):
-    with DownloadProgressBar(unit='B', unit_scale=True,
-                             miniters=1, desc=url.split('/')[-1]) as t:
-        urllib.request.urlretrieve(url, filename=output_path, reporthook=t.update_to)
 
 
 def _make_nccl_url(public_version, filename):
     # https://developer.download.nvidia.com/compute/redist/nccl/v2.8/nccl_2.8.4-1+cuda11.2_x86_64.txz
     return (
-        "https://developer.download.nvidia.com/compute/redist/nccl/"
-        + "v{}/{}".format(public_version, filename)
+            "https://developer.download.nvidia.com/compute/redist/nccl/"
+            + "v{}/{}".format(public_version, filename)
     )
 
 
@@ -51,29 +36,29 @@ def _make_nccl_record(cuda_version, full_version, public_version, filename_linux
     }
 
 
-_nccl_records.append(
-    _make_nccl_record("11.3", "2.9.8", "2.9", "nccl_2.9.8-1+cuda11.3_x86_64.txz")
-)
-_nccl_records.append(
-    _make_nccl_record("11.2", "2.8.4", "2.8", "nccl_2.8.4-1+cuda11.2_x86_64.txz")
-)
-_nccl_records.append(
-    _make_nccl_record("11.1", "2.8.4", "2.8", "nccl_2.8.4-1+cuda11.1_x86_64.txz")
-)
-_nccl_records.append(
-    _make_nccl_record("11.0", "2.9.8", "2.9", "nccl_2.9.8-1+cuda11.0_x86_64.txz")
-)
-_nccl_records.append(
-    _make_nccl_record("10.2", "2.9.8", "2.9", "nccl_2.9.8-1+cuda10.2_x86_64.txz")
-)
-_nccl_records.append(
+library_records["nccl"] = [
+    _make_nccl_record("11.3", "2.9.8", "2.9", "nccl_2.9.8-1+cuda11.3_x86_64.txz"),
+    _make_nccl_record("11.2", "2.8.4", "2.8", "nccl_2.8.4-1+cuda11.2_x86_64.txz"),
+    _make_nccl_record("11.1", "2.8.4", "2.8", "nccl_2.8.4-1+cuda11.1_x86_64.txz"),
+    _make_nccl_record("11.0", "2.9.8", "2.9", "nccl_2.9.8-1+cuda11.0_x86_64.txz"),
+    _make_nccl_record("10.2", "2.9.8", "2.9", "nccl_2.9.8-1+cuda10.2_x86_64.txz"),
     _make_nccl_record("10.1", "2.8.3", "2.8", "nccl_2.8.3-1+cuda10.1_x86_64.txz")
-)
-library_records["nccl"] = _nccl_records
+]
+
+
+def download_url(url, output_path):
+    class DownloadProgressBar(tqdm):
+        def update_to(self, b=1, bsize=1, tsize=None):
+            if tsize is not None:
+                self.total = tsize
+            self.update(b * bsize - self.n)
+
+    with DownloadProgressBar(unit='B', unit_scale=True,
+                             miniters=1, desc=url.split('/')[-1]) as t:
+        urllib.request.urlretrieve(url, filename=output_path, reporthook=t.update_to)
 
 
 def install_lib(cuda, prefix, library):
-    record = None
     lib_records = library_records
     for record in lib_records[library]:
         if record["cuda"] == cuda:
@@ -134,35 +119,25 @@ def calculate_destination(prefix, cuda, lib, lib_ver):
     return os.path.join(prefix, ".data")
 
 
-def check_torch_version():
-    try:
-        import torch
-    except ImportError:
-        print("import torch failed, is it installed?")
-
-    version = torch.__version__
-    if version is None:
-        raise DistutilsPlatformError(
-            "Unable to determine PyTorch version from the version string '%s'"
-            % torch.__version__
-        )
-    return version
-
-
-def install_dependency_library():
+def get_nvcc_version() -> str:
     nvcc_version = (
         os.popen(
             "nvcc --version | grep release | sed 's/.*release //' |  sed 's/,.*//'"
         )
-        .read()
-        .strip()
+            .read()
+            .strip()
     )
     print("nvcc_version: ", nvcc_version)
-    install_lib(nvcc_version, os.path.join(cwd, "python/bagua_core"), "nccl")
+    return nvcc_version
+
+
+def install_dependency_library():
+    install_lib(get_nvcc_version(), os.path.join(cwd, "python/bagua_core"), "nccl")
 
 
 if __name__ == "__main__":
     import colorama
+
     colorama.init(autoreset=True)
     cwd = os.path.dirname(os.path.abspath(__file__))
 
@@ -173,6 +148,12 @@ if __name__ == "__main__":
             + "Bagua is automatically installing some system dependencies like NCCL, to disable set env variable BAGUA_NO_INSTALL_DEPS=1",
         )
         install_dependency_library()
+
+    arrayfire_version = "arrayfire==3.8.0+cu" + get_nvcc_version().replace(".", "")
+    if "113" in arrayfire_version:
+        print("arrayfire cuda113 not yet released, use 112 instead")
+        arrayfire_version = arrayfire_version.replace("113", "112")
+    print("arrayfire version:", arrayfire_version)
 
     setup(
         name="bagua-core",
@@ -194,6 +175,11 @@ if __name__ == "__main__":
         ],
         author="Kuaishou AI Platform & DS3 Lab",
         author_email="admin@mail.xrlian.com",
-        install_requires=[],
+        install_requires=[
+            arrayfire_version
+        ],
+        dependency_links=[
+            "https://repo.arrayfire.com/python/wheels/3.8.0/"
+        ],
         zip_safe=False,
     )
