@@ -1,4 +1,5 @@
 #![allow(clippy::needless_return)]
+#![recursion_limit = "256"]
 #[macro_use]
 extern crate shadow_rs;
 
@@ -23,6 +24,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 cpp! {{
+#include <Al.hpp>
 #include <nccl.h>
 #include <stdio.h>
 #include <iostream>

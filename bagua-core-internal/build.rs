@@ -27,11 +27,32 @@ fn main() {
     cuda_cc
         .file("kernels/bagua_kernels.cu")
         .compile("libbagua_kernels.a");
+    let current_file_path = std::env::current_dir().unwrap();
+    let _al_builder = cmake::Config::new("third_party/Aluminum")
+        .define("ALUMINUM_ENABLE_NCCL", "YES")
+        .define(
+            "CUB_INCLUDE_PATH",
+            current_file_path.join("third_party/cub-1.8.0"),
+        )
+        .define(
+            "NCCL_LIBRARY",
+            current_file_path.join("../python/bagua_core/.data/lib/libnccl.so"),
+        )
+        .define(
+            "NCCL_INCLUDE_PATH",
+            current_file_path.join("../python/bagua_core/.data/include"),
+        )
+        .out_dir("/usr/")
+        .always_configure(true)
+        .build();
+ 
+     let mut cpp_builder = cpp_build::Config::new();
 
     let mut cpp_builder = cpp_build::Config::new();
     cpp_builder.include(format!("{}/include", cuda_home));
     cpp_builder.include("cpp/include");
-    cpp_builder.include("../../bagua/.data/include");
+    cpp_builder.include("/usr/lib/x86_64-linux-gnu/openmpi/include");
+    cpp_builder.include(current_file_path.join("third_party/cub-1.8.0"));
     cpp_builder.build("src/lib.rs");
 
     println!(
@@ -40,6 +61,7 @@ fn main() {
     );
 
     println!("cargo:rustc-link-search=../bagua/.data/lib");
+    println!("cargo:rustc-link-lib=Al");
     println!("cargo:rustc-link-lib=nccl");
     println!("cargo:rustc-link-lib=cudart");
     println!("cargo:rustc-link-lib=nvrtc");
