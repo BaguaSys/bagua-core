@@ -46,12 +46,14 @@ fn main() {
         .always_configure(true)
         .build();
  
-     let mut cpp_builder = cpp_build::Config::new();
-
     let mut cpp_builder = cpp_build::Config::new();
     cpp_builder.include(format!("{}/include", cuda_home));
     cpp_builder.include("cpp/include");
-    cpp_builder.include("/usr/lib/x86_64-linux-gnu/openmpi/include");
+    let mpi_include_dirs = cmd_lib::run_fun!(bash -c "mpicxx --showme:incdirs").unwrap();
+    let mpi_include_dirs: Vec<&str> = mpi_include_dirs.split(' ').collect();
+    for mpi_include_dir in mpi_include_dirs.iter(){
+        cpp_builder.include(mpi_include_dir);
+    }
     cpp_builder.include(current_file_path.join("third_party/cub-1.8.0"));
     cpp_builder.build("src/lib.rs");
 
