@@ -51,7 +51,7 @@ fn main() {
     cpp_builder.include("cpp/include");
     let mpi_include_dirs = cmd_lib::run_fun!(bash -c "mpicxx --showme:incdirs").unwrap();
     let mpi_include_dirs: Vec<&str> = mpi_include_dirs.split(' ').collect();
-    for mpi_include_dir in mpi_include_dirs.iter(){
+    for mpi_include_dir in mpi_include_dirs.iter() {
         cpp_builder.include(mpi_include_dir);
     }
     cpp_builder.include(current_file_path.join("third_party/cub-1.8.0"));

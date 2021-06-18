@@ -315,6 +315,9 @@ impl BaguaCommunicatorInner {
                     Al::Bcast<Al::NCCLBackend>(static_cast<unsigned char*>(tensor_ptr), total_num_elem, root_rank, *communicator_ptr);
                 } else if (nccl_tensor_type == ncclDataType_t::ncclInt64) {
                     Al::Bcast<Al::NCCLBackend>(static_cast<long long int*>(tensor_ptr), total_num_elem, root_rank, *communicator_ptr);
+                } else {
+                    fputs("unsupport tensor data type.\n", stderr);
+                    abort();
                 }
             });
         }
@@ -337,6 +340,9 @@ impl BaguaCommunicatorInner {
                     Al::Reduce<Al::NCCLBackend>(static_cast<unsigned char*>(tensor_ptr), total_num_elem, Al::ReductionOperator::sum, root_rank, *communicator_ptr);
                 } else if (nccl_tensor_type == ncclDataType_t::ncclInt64) {
                     Al::Reduce<Al::NCCLBackend>(static_cast<long long int*>(tensor_ptr), total_num_elem, Al::ReductionOperator::sum, root_rank, *communicator_ptr);
+                } else {
+                    fputs("unsupport tensor data type.\n", stderr);
+                    abort();
                 }
             });
         }
@@ -367,6 +373,9 @@ impl BaguaCommunicatorInner {
                     Al::Alltoall<Al::NCCLBackend>(static_cast<unsigned char*>(send_buf_ptr), static_cast<unsigned char*>(recv_buf_ptr), send_chunk_size, *communicator_ptr);
                 } else if (nccl_tensor_type == ncclDataType_t::ncclInt64) {
                     Al::Alltoall<Al::NCCLBackend>(static_cast<long long int*>(send_buf_ptr), static_cast<long long int*>(recv_buf_ptr), send_chunk_size, *communicator_ptr);
+                } else {
+                    fputs("unsupport tensor data type.\n", stderr);
+                    abort();
                 }
             });
         }
@@ -389,6 +398,9 @@ impl BaguaCommunicatorInner {
                     Al::Send<Al::NCCLBackend>(static_cast<unsigned char*>(tensor_ptr), total_num_elem, peer_rank, *communicator_ptr);
                 } else if (nccl_tensor_type == ncclDataType_t::ncclInt64) {
                     Al::Send<Al::NCCLBackend>(static_cast<long long int*>(tensor_ptr), total_num_elem, peer_rank, *communicator_ptr);
+                } else {
+                    fputs("unsupport tensor data type.\n", stderr);
+                    abort();
                 }
             });
         }
@@ -411,6 +423,9 @@ impl BaguaCommunicatorInner {
                     Al::Recv<Al::NCCLBackend>(static_cast<unsigned char*>(tensor_ptr), total_num_elem, peer_rank, *communicator_ptr);
                 } else if (nccl_tensor_type == ncclDataType_t::ncclInt64) {
                     Al::Recv<Al::NCCLBackend>(static_cast<long long int*>(tensor_ptr), total_num_elem, peer_rank, *communicator_ptr);
+                } else {
+                    fputs("unsupport tensor data type.\n", stderr);
+                    abort();
                 }
             });
         }
@@ -447,6 +462,9 @@ impl BaguaCommunicatorInner {
                     Al::Allgather<Al::NCCLBackend>(static_cast<unsigned char*>(send_buf_ptr), static_cast<unsigned char*>(recv_buf_ptr), send_chunk_size, *communicator_ptr);
                 } else if (nccl_tensor_type == ncclDataType_t::ncclInt64) {
                     Al::Allgather<Al::NCCLBackend>(static_cast<long long int*>(send_buf_ptr), static_cast<long long int*>(recv_buf_ptr), send_chunk_size, *communicator_ptr);
+                } else {
+                    fputs("unsupport tensor data type.\n", stderr);
+                    abort();
                 }
             });
         }
@@ -480,6 +498,9 @@ impl BaguaCommunicatorInner {
                     Al::Allreduce<Al::NCCLBackend>(static_cast<unsigned char*>(tensor_ptr), total_num_elem, Al::ReductionOperator::sum, *communicator_ptr);
                 } else if (nccl_tensor_type == ncclDataType_t::ncclInt64) {
                     Al::Allreduce<Al::NCCLBackend>(static_cast<long long int*>(tensor_ptr), total_num_elem, Al::ReductionOperator::sum, *communicator_ptr);
+                } else {
+                    fputs("unsupport tensor data type.\n", stderr);
+                    abort();
                 }
             });
         }
