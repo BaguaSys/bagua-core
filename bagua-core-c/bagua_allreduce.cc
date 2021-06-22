@@ -248,16 +248,13 @@ namespace bagua
     class BaguaTensor
     {
     public:
-        BaguaTensor(const std::string &name,
-                    uint64_t ptr,
+        BaguaTensor(uint64_t ptr,
                     uintptr_t num_elem,
                     uintptr_t num_elem_allocated,
                     const std::string &dtype_str,
                     uintptr_t device_id)
         {
             _tensor = bagua_tensor_c_create(
-                name.c_str(),
-                static_cast<uintptr_t>(name.length()),
                 ptr,
                 num_elem,
                 num_elem_allocated,
@@ -285,10 +282,13 @@ namespace bagua
     public:
         BaguaBucket(
             const std::vector<BaguaTensorC *> &bucket_tensors,
+            const std::string &name,
             bool inplace,
             uintptr_t align_bytes)
         {
-            _bucket = bagua_bucket_c_create(&bucket_tensors[0], bucket_tensors.size(), inplace, align_bytes);
+            _bucket = bagua_bucket_c_create(&bucket_tensors[0], bucket_tensors.size(),
+                                            name.c_str(), name.size(),
+                                            inplace, align_bytes);
         }
 
         ~BaguaBucket()
@@ -489,8 +489,8 @@ public:
 
         const std::string &node_name = name();
         std::cerr << "node_name=" << node_name
-                    << ", rank=" << _rank
-                    << std::endl;
+                  << ", rank=" << _rank
+                  << std::endl;
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
@@ -649,9 +649,9 @@ public:
         {
             std::unique_lock<std::mutex> lock(global.register_ordered_buckets_mutex);
             std::cerr << "node_name=" << node_name
-                        << ", rank=" << _rank
-                        << " across"
-                        << std::endl;
+                      << ", rank=" << _rank
+                      << " across"
+                      << std::endl;
             if (global.init_tensor_count < _comm_tensors_num)
             {
                 for (int i = 0; i < context->num_inputs(); i++)
@@ -692,8 +692,9 @@ public:
                     int count = 0;
                     void *buffer_ptr = (void *)(global.output_buffer->AccessTensor(context)->tensor_data().data());
                     std::vector<BaguaBucketC *> buckets;
-                    for (const auto &td_bucket : td_buckets)
+                    for (int bucket_id = 0; bucket_id < td_buckets.size(); bucket_id++)
                     {
+                        const auto &td_bucket = td_buckets[bucket_id];
                         std::vector<BaguaTensorC *> bucket;
                         for (auto td_ptr : td_bucket)
                         {
@@ -711,7 +712,6 @@ public:
                                 auto input_byte_size = input.NumElements() * bagua::tensorflow_dtype_byte_size(input.dtype());
 
                                 auto bagua_tensor = std::make_shared<bagua::BaguaTensor>(
-                                    tensor_name,
                                     reinterpret_cast<uint64_t>(buffer_ptr),
                                     input.NumElements(),
                                     input.NumElements(),
@@ -729,7 +729,8 @@ public:
                             }
                         }
 
-                        auto bagua_bucket = std::make_shared<bagua::BaguaBucket>(bucket, true, 8);
+                        const std::string &bucket_name = "bucket_" + std::to_string(bucket_id);
+                        auto bagua_bucket = std::make_shared<bagua::BaguaBucket>(bucket, bucket_name, true, 8);
                         global.bagua_buckets_holder.push_back(bagua_bucket);
                         buckets.push_back(bagua_bucket->ptr());
 
