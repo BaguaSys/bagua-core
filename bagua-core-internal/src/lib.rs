@@ -1,6 +1,8 @@
 #![allow(clippy::needless_return)]
 #[macro_use]
 extern crate shadow_rs;
+#[macro_use]
+extern crate approx;
 
 pub mod comm_ops;
 pub mod communicators;
