@@ -116,8 +116,6 @@ pub struct BaguaTensorC {
 
 #[no_mangle]
 pub extern "C" fn bagua_tensor_c_create(
-    name_ptr: *const c_char,
-    name_size: usize,
     ptr: u64,
     num_elem: usize,
     num_elem_allocated: usize,
@@ -127,7 +125,6 @@ pub extern "C" fn bagua_tensor_c_create(
 ) -> *mut BaguaTensorC {
     let obj = BaguaTensorC {
         inner: BaguaTensor::new(
-            cstr_to_str(name_ptr, name_size),
             ptr,
             num_elem,
             num_elem_allocated,
@@ -158,6 +155,8 @@ pub struct BaguaBucketC {
 pub extern "C" fn bagua_bucket_c_create(
     tensors_ptr: *const *mut BaguaTensorC,
     tensors_len: usize,
+    name_ptr: *const c_char,
+    name_size: usize,
     inplace: bool,
     align_bytes: usize,
 ) -> *mut BaguaBucketC {
@@ -170,7 +169,12 @@ pub extern "C" fn bagua_bucket_c_create(
         }
     };
 
-    let new_bucket = BaguaBucket::new(tensors.as_slice(), inplace, align_bytes);
+    let new_bucket = BaguaBucket::new(
+        tensors.as_slice(),
+        cstr_to_str(name_ptr, name_size),
+        inplace,
+        align_bytes,
+    );
     let new_bucket = match new_bucket {
         Ok(bucket) => bucket,
         Err(error) => {
@@ -196,7 +200,7 @@ pub extern "C" fn bagua_bucket_c_destroy(ptr: &mut *mut BaguaBucketC) {
 }
 
 #[no_mangle]
-pub extern "C" fn bagua_bucket_c_set_centralized_synchronous_op(
+pub extern "C" fn bagua_bucket_c_append_centralized_synchronous_op(
     ptr: *mut BaguaBucketC,
     communicator_internode: *mut BaguaSingleCommunicatorC,
     communicator_intranode: *mut BaguaSingleCommunicatorC,
@@ -209,7 +213,7 @@ pub extern "C" fn bagua_bucket_c_set_centralized_synchronous_op(
     }
 
     unsafe {
-        (*ptr).inner.set_centralized_synchronous_op(
+        (*ptr).inner.append_centralized_synchronous_op(
             Some(&((*communicator_internode).inner)),
             Some(&((*communicator_intranode).inner)),
             hierarchical,
