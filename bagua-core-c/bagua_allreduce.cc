@@ -301,14 +301,14 @@ namespace bagua
             return _bucket;
         }
 
-        void set_centralized_synchronous_op(
+        void append_centralized_synchronous_op(
             BaguaSingleCommunicatorC *communicator_internode,
             BaguaSingleCommunicatorC *communicator_intranode,
             bool hierarchical = false,
             bool average = true,
             bool scattergather = false)
         {
-            bagua_bucket_c_set_centralized_synchronous_op(
+            bagua_bucket_c_append_centralized_synchronous_op(
                 _bucket, communicator_internode, communicator_intranode, hierarchical, average, scattergather);
         }
 
@@ -632,7 +632,7 @@ public:
                            //        global.bagua_buckets_holder.push_back(bagua_bucket);
                            //        buckets.push_back(bagua_bucket->ptr());
 
-                           //        bagua_bucket->set_centralized_synchronous_op(global.comm->ptr(), global.comm->ptr());
+                           //        bagua_bucket->append_centralized_synchronous_op(global.comm->ptr(), global.comm->ptr());
                            //    }
 
                            //    std::cerr << "total bagua_tensor count=" << count << std::endl;
@@ -734,7 +734,7 @@ public:
                         global.bagua_buckets_holder.push_back(bagua_bucket);
                         buckets.push_back(bagua_bucket->ptr());
 
-                        bagua_bucket->set_centralized_synchronous_op(global.comm->ptr(), global.comm->ptr());
+                        bagua_bucket->append_centralized_synchronous_op(global.comm->ptr(), global.comm->ptr());
                     }
 
                     global.bagua_backend->register_ordered_buckets(buckets);
