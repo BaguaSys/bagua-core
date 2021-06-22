@@ -98,7 +98,6 @@ name = "bagua-core-c"
 version = "0.1.2"
 dependencies = [
  "anyhow",
- "approx",
  "bagua-core-internal",
  "cc",
  "cmd_lib",
@@ -111,7 +110,6 @@ dependencies = [
  "openssl-sys",
  "parking_lot",
  "pyo3",
- "reqwest",
  "shadow-rs",
  "tracing",
  "tracing-subscriber",
@@ -122,6 +120,7 @@ dependencies = [
 name = "bagua-core-internal"
 version = "0.1.2"
 dependencies = [
+ "approx",
  "base64",
  "cc",
  "cmd_lib",
@@ -136,6 +135,7 @@ dependencies = [
  "oneshot",
  "parking_lot",
  "pyo3",
+ "reqwest",
  "scheduled-thread-pool",
  "serde",
  "serde_json",
