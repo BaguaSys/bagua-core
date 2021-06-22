@@ -2,7 +2,7 @@
 #[macro_use]
 extern crate shadow_rs;
 #[macro_use]
-extern crate approx;
+extern crate float_cmp;
 
 pub mod comm_ops;
 pub mod communicators;
