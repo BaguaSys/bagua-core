@@ -5,14 +5,13 @@ extern crate log;
 use std::ffi::CString;
 use std::iter;
 
-use bagua_core_internal::communicators::BaguaSingleCommunicator;
+use bagua_core_internal::communicators::{BaguaSingleCommunicator, BaguaCommOpConfig};
 use bagua_core_internal::datatypes::BaguaBucket;
 use bagua_core_internal::datatypes::BaguaTensor;
 use bagua_core_internal::telemetry::{
     BaguaCommCoreTelemetry, RegisterModelsRequest, TensorDeclaration,
 };
 use bagua_core_internal::BaguaCommBackend;
-use bagua_core_internal::BaguaCommOpConfig;
 use libc::c_char;
 use std::{slice, str};
 
