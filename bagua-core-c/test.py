@@ -45,19 +45,19 @@ def _make_allreduce_grads_fn(name):
             "way", root=0)
 
         with tf.name_scope(name + "_Allreduce"):
-            result =  []
+            result = []
             for grad in grads:
                 if grad is None:
                     result.append(grad)
                     continue
 
                 result += bagua_allreduce.grouped_allreduce(
-                tensors=[grad],
-                rank=bagua.get_rank(),
-                nranks=bagua.get_world_size(),
-                device_id=bagua.get_local_rank(),
-                nccl_unique_id_str=nccl_unique_id_str,
-                comm_tensors_num=len(grads))
+                    tensors=[grad],
+                    rank=bagua.get_rank(),
+                    nranks=bagua.get_world_size(),
+                    device_id=bagua.get_local_rank(),
+                    nccl_unique_id_str=nccl_unique_id_str,
+                    comm_tensors_num=len(grads))
 
             return result
 

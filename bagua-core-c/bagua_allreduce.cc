@@ -650,6 +650,8 @@ public:
             std::unique_lock<std::mutex> lock(global.register_ordered_buckets_mutex);
             std::cerr << "node_name=" << node_name
                       << ", rank=" << _rank
+                      << ", init_tensor_count=" << global.init_tensor_count
+                      << ", _comm_tensors_num=" << _comm_tensors_num
                       << " across"
                       << std::endl;
             if (global.init_tensor_count < _comm_tensors_num)
