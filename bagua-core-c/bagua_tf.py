@@ -1,3 +1,4 @@
+import tensorflow as tf
 import bagua.torch_api as bagua
 from bagua.bagua_define import DistributedAlgorithm
 
