@@ -580,6 +580,22 @@ public:
         // void set_output_ref(int index, mutex* mu, Tensor* tensor_for_ref);
         // TensorValue release_output(int index);
 
+        bool pass = false;
+        if (pass) {
+            for (int i = 0; i < context->num_outputs(); i++)
+            {
+                const auto &input = context->input(i);
+
+                tensorflow::Tensor *output;
+                context->allocate_output(i, input.shape(), &output);
+            }
+
+            context->SetStatus(Status::OK());
+            done();
+            return;
+        }
+
+
         const std::string &node_name = name();
         // std::cerr << "node_name=" << node_name
         //           << ", rank=" << _rank

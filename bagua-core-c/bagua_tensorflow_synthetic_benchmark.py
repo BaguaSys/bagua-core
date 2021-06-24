@@ -7,7 +7,7 @@ import tensorflow as tf
 import bagua.torch_api as bagua
 from bagua.bagua_define import DistributedAlgorithm
 
-from . import bagua_tf
+import bagua_tf
 
 def bagua_init(opt: tf.train.Optimizer, distributed_algorithm=DistributedAlgorithm.GradientAllReduce):
     bagua_opt = bagua_tf.DistributeOptimizer(
