@@ -56,7 +56,7 @@ impl BaguaSingleCommunicatorPy {
     }
 
     pub fn reduce(&self, tensor: &mut BaguaTensorPy, root_rank: i32) {
-        self.inner.broadcast(&mut tensor.inner, root_rank)
+        self.inner.reduce(&mut tensor.inner, root_rank)
     }
 
     pub fn send(&self, tensor: &mut BaguaTensorPy, peer_rank: i32) {
