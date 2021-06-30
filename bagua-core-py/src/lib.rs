@@ -204,7 +204,7 @@ impl BaguaTensorPy {
     }
 
     pub fn ptr(&self) -> u64 {
-        self.inner.ptr()
+        self.inner.data_ptr()
     }
 
     pub fn num_elem(&self) -> usize {
