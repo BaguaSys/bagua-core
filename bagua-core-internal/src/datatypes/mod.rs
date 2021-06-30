@@ -8,7 +8,7 @@ use crate::comm_ops::CommOpTrait;
 use crate::communicators::{BaguaCommunicator, BaguaSingleCommunicator};
 use crate::resource_pool::{CudaMemory, CUDA_DEVICE_MEMORY_POOL};
 use crate::telemetry::TELEMETRY;
-use crate::torch_ffi::{DeviceType_CUDA, StorageImpl, TensorImpl};
+use crate::torch_ffi::root::c10::{DeviceType, StorageImpl, TensorImpl};
 use crate::{kernels, BaguaCoreError};
 use itertools::Itertools;
 use parking_lot::{Mutex, RwLock};
@@ -61,7 +61,7 @@ pub struct BaguaTensorRaw {
     pub dtype: BaguaTensorDtype,
     pub num_elem: usize,
     pub device_id: usize,
-    pub pool_allocation: Option<DynamicPoolItem<CudaMemory>>,
+    pub pool_allocations: Vec<Arc<DynamicPoolItem<CudaMemory>>>,
 }
 
 pub trait RawBaguaTensor: Debug {
@@ -234,7 +234,7 @@ pub trait RawBaguaTensor: Debug {
                     dtype: BaguaTensorDtype::U8,
                     num_elem: output_buffer_size,
                     device_id: self.device_id(),
-                    pool_allocation: Some(output_buffer),
+                    pool_allocations: vec![Arc::new(output_buffer)],
                 }));
             }
         }
@@ -375,9 +375,7 @@ impl TorchTensorRaw {
 
     fn extract_storage(&self) -> &StorageImpl {
         unsafe {
-            self.extract_torch_c_data()
-                .storage_
-                .storage_impl_
+            (self.extract_torch_c_data().storage_.storage_impl_.target_ as *const StorageImpl)
                 .as_ref()
                 .expect("torch c data has not storage")
         }
@@ -388,7 +386,8 @@ impl RawBaguaTensor for TorchTensorRaw {
     fn data_ptr(&self) -> u64 {
         let cdata = self.extract_torch_c_data();
         let storage = self.extract_storage();
-        storage.data_ptr_.ptr_.data_ as u64 + cdata.storage_offset_ as u64
+        storage.data_ptr_.ptr_.data_ as u64
+            + cdata.storage_offset_ as u64 * self.dtype.bytes() as u64
     }
 
     fn num_elements(&self) -> usize {
@@ -400,11 +399,10 @@ impl RawBaguaTensor for TorchTensorRaw {
     }
 
     fn device_id(&self) -> usize {
-        dbg!(self.extract_torch_c_data());
-        dbg!(self.extract_storage());
         let storage_data_ptr = &self.extract_storage().data_ptr_;
         assert_eq!(
-            storage_data_ptr.device_.type_, DeviceType_CUDA,
+            storage_data_ptr.device_.type_,
+            DeviceType::CUDA,
             "currently only cuda tensors are supported in Bagua"
         );
         return storage_data_ptr.device_.index_ as _;
@@ -537,31 +535,6 @@ pub struct BaguaTensor {
 }
 
 impl BaguaTensor {
-    pub fn new(
-        name: String,
-        ptr: u64,
-        num_elem: usize,
-        num_elem_allocated: usize,
-        dtype: BaguaTensorDtype,
-        device_id: usize,
-    ) -> Self {
-        Self {
-            inner: Arc::new(RwLock::new(BaguaTensorInner {
-                name,
-                raw: Box::new(BaguaTensorRaw {
-                    ptr,
-                    num_elem,
-                    num_elem_allocated,
-                    dtype,
-                    device_id,
-                    pool_allocation: None,
-                }),
-                ready_for_comm: false,
-                ready_cuda_event_ptr: 0,
-            })),
-        }
-    }
-
     pub fn new_from_torch(name: String, torch_cdata_ptr: u64, dtype: BaguaTensorDtype) -> Self {
         Self {
             inner: Arc::new(RwLock::new(BaguaTensorInner {
@@ -683,11 +656,15 @@ impl BaguaTensor {
         self.inner.read().raw.data_ptr()
     }
 
-    pub fn num_elem(&self) -> usize {
+    pub fn device_id(&self) -> usize {
+        self.inner.read().raw.device_id()
+    }
+
+    pub fn num_elements(&self) -> usize {
         self.inner.read().raw.num_elements()
     }
 
-    pub fn num_elem_allocated(&self) -> usize {
+    pub fn num_elements_allocated(&self) -> usize {
         self.inner.read().raw.num_elements_allocated()
     }
 
@@ -711,13 +688,18 @@ pub struct BaguaCommunicationTensor<'b> {
 }
 
 impl BaguaBucketInner {
-    pub fn inplace(&self) -> bool {
+    pub fn contiguous(&self) -> bool {
         let bytes_per_element = self.dtype.bytes() as u64;
         let t = &(*self.tensors.first().unwrap()).inner.read();
         let mut current_ptr =
             t.raw.data_ptr() + t.raw.num_elements_allocated() as u64 * bytes_per_element;
         for tensor in self.tensors.iter().dropping(1) {
             let inner_tensor = &tensor.inner.read();
+            tracing::debug!(
+                "current_ptr {} next tensor data_ptr {}",
+                current_ptr,
+                inner_tensor.raw.data_ptr()
+            );
             if current_ptr != inner_tensor.raw.data_ptr() {
                 return false;
             } else {
@@ -727,10 +709,17 @@ impl BaguaBucketInner {
         return true;
     }
 
+    pub fn total_num_elements(&self) -> usize {
+        self.tensors
+            .iter()
+            .map(|tensor| tensor.num_elements())
+            .sum::<usize>()
+    }
+
     pub fn total_num_elements_allocated(&self) -> usize {
         self.tensors
             .iter()
-            .map(|tensor| tensor.num_elem_allocated())
+            .map(|tensor| tensor.num_elements_allocated())
             .sum::<usize>()
     }
 
@@ -739,6 +728,7 @@ impl BaguaBucketInner {
     }
 
     /// NOTE: this does not wait for memcpy finished
+    // TODO: simplify args
     pub fn get_communication_tensor(
         &self,
         stream_ptr: u64,
@@ -757,28 +747,18 @@ impl BaguaBucketInner {
             }
             tensor.inner.write().ready_cuda_event_ptr = 0;
         }
-        match self.inplace() && !force_copy {
+        match self.contiguous() && !force_copy {
             true => {
                 tracing::debug!("bucket is inplace, creating communication tensor without copy");
-                let tensor = self.tensors.first().unwrap().inner.read();
-                let total_num_elem: usize = self
-                    .tensors
-                    .iter()
-                    .map(|x| x.inner.read().raw.num_elements())
-                    .sum();
-                let total_num_elem_allocated: usize = self
-                    .tensors
-                    .iter()
-                    .map(|x| x.inner.read().raw.num_elements_allocated())
-                    .sum();
+                let total_num_elem_allocated: usize = self.total_num_elements_allocated();
                 BaguaCommunicationTensor {
                     raw: BaguaTensorRaw {
-                        ptr: tensor.raw.data_ptr(),
-                        num_elem: total_num_elem,
-                        dtype: tensor.raw.dtype(),
+                        ptr: self.tensors[0].data_ptr(),
+                        num_elem: total_num_elem_allocated,
+                        dtype: self.dtype,
                         num_elem_allocated: total_num_elem_allocated,
-                        device_id: tensor.raw.device_id(),
-                        pool_allocation: None,
+                        device_id: self.tensors[0].device_id(),
+                        pool_allocations: vec![],
                     },
                     need_copy_back: false,
                     bucket: &self,
@@ -818,7 +798,7 @@ impl BaguaBucketInner {
                         dtype: first_tensor.raw.dtype().clone(),
                         num_elem_allocated: self.total_num_elements_allocated(),
                         device_id: first_tensor.raw.device_id(),
-                        pool_allocation: Some(buffer_tensor),
+                        pool_allocations: vec![Arc::new(buffer_tensor)],
                     },
                     need_copy_back: if force_not_copy_back { false } else { true },
                     bucket: &self,

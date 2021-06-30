@@ -38,7 +38,7 @@ impl CommOpTrait for CentralizedFullPrecisionSynchronous {
                     dtype: t.raw.dtype.clone(),
                     num_elem: t.raw.num_elem,
                     device_id: t.raw.device_id,
-                    pool_allocation: Some(temp_buf),
+                    pool_allocations: vec![Arc::new(temp_buf)],
                 };
                 if self.scattergather {
                     tracing::debug!("start alltoall");

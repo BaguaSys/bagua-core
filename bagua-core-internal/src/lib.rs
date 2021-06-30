@@ -58,6 +58,7 @@ pub enum BaguaCoreError {
 
 #[derive(Debug)]
 pub struct BaguaScheduledCommOp {
+    pub name: String,
     pub bucket: Arc<BaguaBucket>,
     pub ops: Vec<Arc<dyn CommOpTrait + Send + Sync>>,
     pub event_channel: BaguaEventChannel,
@@ -130,10 +131,11 @@ pub struct BaguaCommBackend {
 
 impl BaguaCommBackend {
     pub fn schedule_comm(&self, bucket: Arc<BaguaBucket>) -> Result<(), BaguaCoreError> {
-        let event_channel = BaguaEventChannel::default();
+        let event_channel = BaguaEventChannel::new("comm_op");
         self.channels
             .schedule_channel_sender
             .send(BaguaScheduledCommOp {
+                name: format!("comm op for bucket {}", bucket.name),
                 ops: {
                     let guard = bucket.inner.lock();
                     guard.comm_ops.clone()
@@ -197,8 +199,8 @@ impl BaguaCommBackend {
                         .recv()
                         .expect("cannot receive new comm op");
                     tracing::debug!(
-                        "worker received scheduled communication operation {:?}",
-                        comm_op
+                        "worker received scheduled communication operation {}",
+                        comm_op.name
                     );
                     if let Err(e) = monitor_op_start_channel_sender.send(comm_op.bucket.clone()) {
                         tracing::error!("{:?}", e);
@@ -209,9 +211,9 @@ impl BaguaCommBackend {
                             &channels_clone,
                         );
                     }
-                    tracing::debug!("comm op executed: {:?}", comm_op);
+                    tracing::debug!("comm op executed: {}", comm_op.name);
                     comm_op.event_channel.finish();
-                    tracing::debug!("comm op marked finished: {:?}", comm_op);
+                    tracing::debug!("comm op marked finished: {}", comm_op.name);
                     monitor_op_finish_channel_sender.send(());
                 }
             }),
@@ -268,7 +270,7 @@ impl BaguaCommBackend {
         tensor.mark_comm_ready(ready_cuda_event_ptr);
         while self.should_schedule()? {
             let bucket = self.ordered_buckets.pop_front().unwrap();
-            tracing::debug!("bucket {:?} ready for communication", bucket);
+            tracing::debug!("bucket {} ready for communication", bucket.name);
             bucket.reset_comm_ready();
             let bucket_clone = bucket.clone();
             self.ordered_buckets.push_back(bucket);
@@ -285,9 +287,9 @@ impl BaguaCommBackend {
             let ev = self.channels.not_waited_events_receiver.try_recv();
             match ev {
                 Ok(x) => {
-                    tracing::debug!("waiting for comm ops event {:?}", x);
+                    tracing::debug!("waiting for comm ops event `{}`", x.name);
                     x.wait();
-                    tracing::debug!("comm ops event {:?} finished", x);
+                    tracing::debug!("comm ops event `{}` finished", x.name);
                     num_ev += 1;
                 }
                 Err(_) => return Ok(num_ev),

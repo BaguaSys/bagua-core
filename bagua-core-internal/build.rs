@@ -84,5 +84,7 @@ fn main() {
     println!("cargo:rerun-if-changed=src/");
     println!("cargo:rerun-if-changed=kernels/");
     println!("cargo:rerun-if-changed=build.rs");
+
+    // bindgen --allowlist-type '.*TensorImpl.*' --enable-cxx-namespaces --ignore-functions --ignore-methods --size_t-is-usize --default-enum-style=rust --opaque-type 'std.*' --opaque-type 'c10::optional.*' wrapper.h -- -x c++ -std=c++14 > src/torch_ffi.rs
     shadow_rs::new().unwrap();
 }
