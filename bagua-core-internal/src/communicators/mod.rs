@@ -1,4 +1,6 @@
-use crate::datatypes::{BaguaCommunicationTensor, BaguaTensor, BaguaTensorRaw, RawBaguaTensor, BaguaReductionOp};
+use crate::datatypes::{
+    BaguaCommunicationTensor, BaguaReductionOp, BaguaTensor, BaguaTensorRaw, RawBaguaTensor,
+};
 use crate::BaguaCoreError;
 use itertools::Itertools;
 use std::sync::Arc;
