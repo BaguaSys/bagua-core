@@ -1,5 +1,4 @@
 use crate::datatypes::{BaguaCommunicationTensor, BaguaTensor, BaguaTensorRaw, RawBaguaTensor};
-use crate::resource_pool::CUDA_DEVICE_MEMORY_POOL;
 use crate::BaguaCoreError;
 use itertools::Itertools;
 use std::sync::Arc;

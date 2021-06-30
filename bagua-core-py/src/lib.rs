@@ -7,7 +7,6 @@ use numpy::{IntoPyArray, PyArray1};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::PyNativeType;
-use std::sync::Arc;
 
 #[pyclass(dict)]
 pub struct BaguaSingleCommunicatorPy {
@@ -203,16 +202,16 @@ impl BaguaTensorPy {
             .decompress_from(method, n_chunks, &compressed_buffer.inner);
     }
 
-    pub fn ptr(&self) -> u64 {
+    pub fn data_ptr(&self) -> u64 {
         self.inner.data_ptr()
     }
 
-    pub fn num_elem(&self) -> usize {
-        self.inner.num_elem()
+    pub fn num_elements(&self) -> usize {
+        self.inner.num_elements()
     }
 
-    pub fn num_elem_allocated(&self) -> usize {
-        self.inner.num_elem_allocated()
+    pub fn num_elements_allocated(&self) -> usize {
+        self.inner.num_elements_allocated()
     }
 
     pub fn dtype(&self) -> String {

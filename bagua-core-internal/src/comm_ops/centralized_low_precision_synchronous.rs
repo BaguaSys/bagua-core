@@ -45,7 +45,7 @@ impl CommOpTrait for CentralizedLowPrecisionSynchronous {
                     dtype: compressed_tensor.dtype().clone(),
                     num_elem: compressed_tensor.num_elements(),
                     device_id: compressed_tensor.device_id(),
-                    pool_allocation: Some(temp_buf),
+                    pool_allocations: vec![Arc::new(temp_buf)],
                 };
                 tracing::debug!("start alltoall");
                 c.alltoall(compressed_tensor.as_ref(), &mut temp_tensor);
