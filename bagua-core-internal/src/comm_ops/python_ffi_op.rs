@@ -1,5 +1,8 @@
 use crate::comm_ops::CommOpTrait;
+use crate::datatypes::BaguaBucket;
+use crate::BaguaCommOpChannels;
 use pyo3::Python;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct PythonFFIOp {
