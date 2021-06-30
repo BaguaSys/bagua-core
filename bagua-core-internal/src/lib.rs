@@ -11,6 +11,7 @@ pub mod events;
 pub mod kernels;
 pub mod resource_pool;
 pub mod telemetry;
+mod torch_ffi;
 
 use crate::comm_ops::CommOpTrait;
 use crate::telemetry::{SCHEDULED_THREAD_POOL, TELEMETRY};
@@ -120,7 +121,7 @@ pub fn show_version() {
 pub struct BaguaCommBackend {
     ordered_buckets: VecDeque<Arc<BaguaBucket>>,
     /// <tensor_id, bagua_bucket>
-    bucket_mapping: HashMap<u64, Arc<BaguaBucket>>,
+    bucket_mapping: HashMap<String, Arc<BaguaBucket>>,
     channels: Arc<BaguaCommOpChannels>,
     managed_ptrs: HashSet<u64>,
     comm_worker: std::thread::JoinHandle<()>,
@@ -199,7 +200,9 @@ impl BaguaCommBackend {
                         "worker received scheduled communication operation {:?}",
                         comm_op
                     );
-                    monitor_op_start_channel_sender.send(comm_op.bucket.clone());
+                    if let Err(e) = monitor_op_start_channel_sender.send(comm_op.bucket.clone()) {
+                        tracing::error!("{:?}", e);
+                    }
                     for op in &comm_op.ops {
                         op.execute_background_communication(
                             comm_op.bucket.clone(),
@@ -239,17 +242,19 @@ impl BaguaCommBackend {
             let bucket = Arc::new((*bucket).clone());
             self.ordered_buckets.push_back(bucket.clone());
             for tensor in &bucket.inner.lock().tensors {
-                if self.bucket_mapping.contains_key(&tensor.id)
-                    || self.managed_ptrs.contains(&tensor.inner.read().raw.ptr)
+                if self.bucket_mapping.contains_key(&tensor.name())
+                    || self
+                        .managed_ptrs
+                        .contains(&tensor.inner.read().raw.data_ptr())
                 {
                     return Err(BaguaCoreError::TensorError(format!(
-                        "duplicated tensor detected, id {}, ptr {}",
-                        &tensor.id,
-                        &tensor.inner.read().raw.ptr
+                        "duplicated tensor detected, name {}, ptr {}",
+                        &tensor.name(),
+                        &tensor.inner.read().raw.data_ptr()
                     )));
                 }
-                self.bucket_mapping.insert(tensor.id, bucket.clone());
-                self.managed_ptrs.insert(tensor.inner.read().raw.ptr);
+                self.bucket_mapping.insert(tensor.name(), bucket.clone());
+                self.managed_ptrs.insert(tensor.inner.read().raw.data_ptr());
             }
         }
         Ok(())
