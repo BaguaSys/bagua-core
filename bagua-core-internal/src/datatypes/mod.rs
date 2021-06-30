@@ -188,6 +188,78 @@ impl BaguaTensorRaw {
         }
     }
 
+    pub fn substract_inplace(&mut self, other: &Self, stream_ptr: u64) {
+        assert_eq!(self.dtype, other.dtype);
+        assert_eq!(self.num_elem, other.num_elem);
+        let tensor_ptr = self.ptr;
+        let total_num_elem = self.num_elem;
+        unsafe {
+            match self.dtype {
+                BaguaTensorDtype::F32 => {
+                    kernels::substract_inplace_f32_host(
+                        tensor_ptr as _,
+                        other.ptr as _,
+                        total_num_elem as i32,
+                        stream_ptr as _,
+                    );
+                }
+                BaguaTensorDtype::F16 => {
+                    kernels::substract_inplace_f16_host(
+                        tensor_ptr as _,
+                        other.ptr as _,
+                        total_num_elem as i32,
+                        stream_ptr as _,
+                    );
+                }
+                BaguaTensorDtype::U8 => {
+                    unimplemented!()
+                }
+                BaguaTensorDtype::I64 => {
+                    unimplemented!()
+                }
+                BaguaTensorDtype::U64 => {
+                    unimplemented!()
+                }
+            }
+        }
+    }
+
+    pub fn add_inplace(&mut self, other: &Self, stream_ptr: u64) {
+        assert_eq!(self.dtype, other.dtype);
+        assert_eq!(self.num_elem, other.num_elem);
+        let tensor_ptr = self.ptr;
+        let total_num_elem = self.num_elem;
+        unsafe {
+            match self.dtype {
+                BaguaTensorDtype::F32 => {
+                    kernels::add_inplace_f32_host(
+                        tensor_ptr as _,
+                        other.ptr as _,
+                        total_num_elem as i32,
+                        stream_ptr as _,
+                    );
+                }
+                BaguaTensorDtype::F16 => {
+                    kernels::add_inplace_f16_host(
+                        tensor_ptr as _,
+                        other.ptr as _,
+                        total_num_elem as i32,
+                        stream_ptr as _,
+                    );
+                }
+                BaguaTensorDtype::U8 => {
+                    unimplemented!()
+                }
+                BaguaTensorDtype::I64 => {
+                    unimplemented!()
+                }
+                BaguaTensorDtype::U64 => {
+                    unimplemented!()
+                }
+            }
+        }
+    }
+
     pub fn average_inplace(&mut self, other: &Self, stream_ptr: u64) {
         assert_eq!(self.dtype, other.dtype);
         assert_eq!(self.num_elem, other.num_elem);
@@ -866,6 +938,8 @@ impl BaguaBucket {
         peer_selection_mode: String,
         communication_interval: usize,
         compression: Option<String>,
+        my_weight: &mut BaguaTensorPy,
+        peer_weight: &mut BaguaTensorPy,
     ) {
         let communicator =
             BaguaCommunicator::new(communicator_internode, communicator_intranode, hierarchical)
@@ -884,9 +958,23 @@ impl BaguaBucket {
                 communication_interval,
             }),
             Some(x) => match x.as_str() {
+                "MinMaxUInt8" => Arc::new(DecentralizedLowPrecisionSynchronous {
+                     communicator,
+                     peer_selection_mode: match peer_selection_mode.as_str() {
+                         "shift_one" => PeerSelectionMode::ShiftOne,
+                         &_ => {
+                             unimplemented!("unsupported peer_selection_mode for decentralized algorithm (should be `all` or `shift_one`)")
+                         }
+                     },
+                     step: Default::default(),
+                     communication_interval,
+                     &mut my_weight.inner,
+                     &mut peer_weight.inner,
+                }),
                 _ => {
                     unimplemented!()
                 }
+
             },
         };
         self.inner.lock().comm_ops.push(comm_op);

@@ -60,6 +60,26 @@ __device__ inline half __havg_with_fallback(const half a, const half b) {
 #endif
 }
 
+__device__ inline half __hsub_with_fallback(const half a, const half b) {
+#if __CUDA_ARCH__ >= 530
+    return __hsub(a, b);
+#else
+    float out;
+    out = __half2float(a) - __half2float(b);
+    return __float2half_rn(out);
+#endif
+}
+
+__device__ inline half __hadd_with_fallback(const half a, const half b) {
+#if __CUDA_ARCH__ >= 530
+    return __hadd(a, b);
+#else
+    float out;
+    out = __half2float(a) + __half2float(b);
+    return __float2half_rn(out);
+#endif
+}
+
 // Reference: https://github.com/dmlc/cub/blob/master/cub/thread/thread_operators.cuh
 struct Sum {
     /// Boolean sum operator, returns <tt>a + b</tt>
@@ -172,6 +192,30 @@ __global__ void average_inplace_f32(float *x, float *y, int N) {
 __global__ void average_inplace_f16(__half *x, __half *y, int N) {
     for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N; i += blockDim.x * gridDim.x) {
         x[i] = __havg_with_fallback(x[i], y[i]);
+    }
+}
+
+__global__ void substract_inplace_f32(float *x, float *y, int N) {
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N; i += blockDim.x * gridDim.x) {
+        x[i] -= y[i];
+    }
+}
+
+__global__ void substract_inplace_f16(__half *x, __half *y, int N) {
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N; i += blockDim.x * gridDim.x) {
+        x[i] = __hsub_with_fallback(x[i], y[i]);
+    }
+}
+
+__global__ void add_inplace_f32(float *x, float *y, int N) {
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N; i += blockDim.x * gridDim.x) {
+        x[i] += y[i];
+    }
+}
+
+__global__ void add_inplace_f16(__half *x, __half *y, int N) {
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N; i += blockDim.x * gridDim.x) {
+        x[i] = __hadd_with_fallback(x[i], y[i]);
     }
 }
 
