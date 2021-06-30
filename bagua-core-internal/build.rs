@@ -14,16 +14,18 @@ fn main() {
     let mut cuda_cc = cc::Build::new();
     cuda_cc
         .cuda(true)
-        .opt_level(3)
         .include("cpp/include")
         .include("third_party/cub-1.8.0")
         .include("../python/bagua_core/.data/include")
         .flag("-std=c++14")
         .flag("-cudart=shared");
-    for sm in supported_sms {
-        cuda_cc
-            .flag("-gencode")
-            .flag(format!("arch=compute_{},code=sm_{}", sm, sm).as_str());
+
+    if std::env::var("PROFILE").unwrap() == "release" {
+        for sm in supported_sms {
+            cuda_cc
+                .flag("-gencode")
+                .flag(format!("arch=compute_{},code=sm_{}", sm, sm).as_str());
+        }
     }
     cuda_cc
         .file("kernels/bagua_kernels.cu")

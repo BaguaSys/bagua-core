@@ -1,6 +1,6 @@
 use crate::comm_ops::CommOpTrait;
 use crate::communicators::BaguaCommunicator;
-use crate::datatypes::{BaguaBucket, BaguaTensorRaw};
+use crate::datatypes::{BaguaBucket, BaguaTensorRaw, RawBaguaTensor};
 use crate::resource_pool::CUDA_DEVICE_MEMORY_POOL;
 use crate::BaguaCommOpChannels;
 use std::sync::Arc;

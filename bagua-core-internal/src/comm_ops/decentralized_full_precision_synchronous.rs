@@ -1,6 +1,6 @@
 use crate::comm_ops::CommOpTrait;
 use crate::communicators::{BaguaCommunicator, BaguaHierarchicalCommunicator, NCCLGroupGuard};
-use crate::datatypes::{BaguaBucket, BaguaTensorRaw};
+use crate::datatypes::{BaguaBucket, BaguaTensorRaw, RawBaguaTensor};
 use crate::resource_pool::CUDA_DEVICE_MEMORY_POOL;
 use crate::{BaguaCommOpChannels, BaguaScheduledCommOp};
 use parking_lot::Mutex;

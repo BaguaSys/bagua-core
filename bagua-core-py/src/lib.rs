@@ -113,22 +113,49 @@ pub struct BaguaTensorPy {
 
 #[pymethods]
 impl BaguaTensorPy {
-    #[new]
-    pub fn new(
-        ptr: u64,
-        num_elem: usize,
-        num_elem_allocated: usize,
-        dtype: &str,
-        device_id: usize,
-    ) -> Self {
-        Self {
-            inner: BaguaTensor::new(ptr, num_elem, num_elem_allocated, dtype, device_id),
-        }
-    }
+    // #[new]
+    // pub fn new(
+    //     ptr: u64,
+    //     num_elem: usize,
+    //     num_elem_allocated: usize,
+    //     dtype: &str,
+    //     device_id: usize,
+    // ) -> Self {
+    //     Self {
+    //         inner: BaguaTensor::new(ptr, num_elem, num_elem_allocated, dtype, device_id),
+    //     }
+    // }
 
     #[new]
-    pub fn new_from_torch(torch_tensor: &PyAny) -> Self {
-        unimplemented!();
+    pub fn new(torch_tensor: &PyAny, name: String) -> PyResult<Self> {
+        // TODO: sanity check
+        let dtype = torch_tensor
+            .getattr("dtype")
+            .expect("must pass valid torch tensor")
+            .repr()?
+            .to_string();
+        let bagua_dtype = match dtype.as_str() {
+            "torch.float32" => BaguaTensorDtype::F32,
+            "torch.float16" => BaguaTensorDtype::F16,
+            "torch.int64" => BaguaTensorDtype::I64,
+            "torch.uint8" => BaguaTensorDtype::U8,
+            _ => {
+                return Err(PyRuntimeError::new_err(format!(
+                    "unsupported tensor dtype {}",
+                    dtype
+                )))
+            }
+        };
+        Ok(Self {
+            inner: BaguaTensor::new_from_torch(
+                name,
+                torch_tensor
+                    .getattr("_cdata")
+                    .expect("must pass valid torch tensor")
+                    .extract()?,
+                bagua_dtype,
+            ),
+        })
     }
 
     pub fn compress(&self, method: &str, n_chunks: usize, target_chunk: i32) -> Self {
@@ -139,11 +166,11 @@ impl BaguaTensorPy {
 
     pub fn to_numpy_f32<'py>(self_: PyRef<'py, Self>) -> pyo3::Py<PyArray1<f32>> {
         let inner = self_.inner.inner.read();
-        assert_eq!(inner.raw.dtype, BaguaTensorDtype::F32);
-        let mut array = ndarray::Array1::from_elem((inner.raw.num_elem,), 0f32);
+        assert_eq!(inner.raw.dtype(), BaguaTensorDtype::F32);
+        let mut array = ndarray::Array1::from_elem((inner.raw.num_elements(),), 0f32);
         let array_ptr = array.as_mut_ptr();
-        let device_ptr = inner.raw.ptr;
-        let num_bytes = inner.raw.num_elem as i32 * inner.raw.dtype.bytes() as i32;
+        let device_ptr = inner.raw.data_ptr();
+        let num_bytes = inner.raw.num_elements() as i32 * inner.raw.dtype().bytes() as i32;
         unsafe {
             bagua_core_internal::cuda_utils::cuda_memcpy_device_to_host_sync(
                 array_ptr as _,
@@ -156,11 +183,11 @@ impl BaguaTensorPy {
 
     pub fn to_numpy_u8<'py>(self_: PyRef<'py, Self>) -> pyo3::Py<PyArray1<u8>> {
         let inner = self_.inner.inner.read();
-        assert_eq!(inner.raw.dtype, BaguaTensorDtype::U8);
-        let mut array = ndarray::Array1::from_elem((inner.raw.num_elem,), 0u8);
+        assert_eq!(inner.raw.dtype(), BaguaTensorDtype::U8);
+        let mut array = ndarray::Array1::from_elem((inner.raw.num_elements(),), 0u8);
         let array_ptr = array.as_mut_ptr();
-        let device_ptr = inner.raw.ptr;
-        let num_bytes = inner.raw.num_elem as i32 * inner.raw.dtype.bytes() as i32;
+        let device_ptr = inner.raw.data_ptr();
+        let num_bytes = inner.raw.num_elements() as i32 * inner.raw.dtype().bytes() as i32;
         unsafe {
             bagua_core_internal::cuda_utils::cuda_memcpy_device_to_host_sync(
                 array_ptr as _,
@@ -180,10 +207,6 @@ impl BaguaTensorPy {
         self.inner.ptr()
     }
 
-    pub fn id(&self) -> u64 {
-        self.inner.id()
-    }
-
     pub fn num_elem(&self) -> usize {
         self.inner.num_elem()
     }
@@ -194,10 +217,6 @@ impl BaguaTensorPy {
 
     pub fn dtype(&self) -> String {
         self.inner.dtype()
-    }
-
-    pub fn reset_ptr(&mut self, ptr: u64) {
-        self.inner.reset_ptr(ptr)
     }
 }
 
@@ -267,19 +286,13 @@ pub struct BaguaBucketPy {
 #[pymethods]
 impl BaguaBucketPy {
     #[new]
-    #[args(align_bytes = "0")]
-    pub fn new(
-        name: &str,
-        tensors: Vec<PyRef<BaguaTensorPy>>,
-        inplace: bool,
-        align_bytes: usize,
-    ) -> PyResult<Self> {
+    pub fn new(name: &str, tensors: Vec<PyRef<BaguaTensorPy>>) -> PyResult<Self> {
         let mut tensors_inner = Vec::with_capacity(tensors.len());
         for t in tensors.iter() {
             tensors_inner.push(&t.inner)
         }
         Ok(Self {
-            inner: BaguaBucket::new(tensors_inner.as_slice(), name, inplace, align_bytes)
+            inner: BaguaBucket::new(tensors_inner.as_slice(), name)
                 .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))?,
         })
     }

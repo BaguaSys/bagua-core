@@ -15,7 +15,6 @@ itertools = "0.10"
 shadow-rs = "0.5"
 parking_lot = { version = "0.11", features = ["deadlock_detection"] }
 hashbrown = "0.11"
-lazy_id = "0.1"
 flume = "0.10"
 oneshot = "0.1"
 cpp = "0.5"
