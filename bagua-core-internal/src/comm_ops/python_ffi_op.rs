@@ -1,10 +1,5 @@
 use crate::comm_ops::CommOpTrait;
-use crate::communicators::BaguaCommunicator;
-use crate::datatypes::{BaguaBucket, BaguaTensorRaw};
-use crate::resource_pool::CUDA_DEVICE_MEMORY_POOL;
-use crate::BaguaCommOpChannels;
 use pyo3::Python;
-use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct PythonFFIOp {
