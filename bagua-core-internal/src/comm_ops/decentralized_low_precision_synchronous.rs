@@ -1,6 +1,7 @@
 use crate::comm_ops::CommOpTrait;
 use crate::communicators::{BaguaCommunicator, BaguaHierarchicalCommunicator, NCCLGroupGuard};
-use crate::datatypes::{BaguaBucket, BaguaTensorRaw};
+use crate::datatypes::{BaguaBucket, BaguaTensorRaw, RawBaguaTensor, TensorCompressionMethod};
+use crate::comm_ops::decentralized_full_precision_synchronous::PeerSelectionMode;
 use crate::resource_pool::CUDA_DEVICE_MEMORY_POOL;
 use crate::{BaguaCommOpChannels, BaguaScheduledCommOp};
 use parking_lot::Mutex;
@@ -12,8 +13,9 @@ pub struct DecentralizedLowPrecisionSynchronous {
     pub peer_selection_mode: PeerSelectionMode,
     pub step: Mutex<usize>,
     pub communication_interval: usize,
-    pub my_weight: BaguaTensorRaw,
-    pub peer_weight: BaguaTensorRaw,
+    pub my_tensor: BaguaTensorRaw,
+    pub left_peer_tensor: BaguaTensorRaw,
+    pub right_peer_tensor: BaguaTensorRaw,
     pub compression_method: TensorCompressionMethod,
 }
 
@@ -40,7 +42,10 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
             },
         };
 
-        let step = { *self.step.lock() };
+        let peer_mode = &self.peer_selection_mode;
+
+        let left_peer_tensor = &self.left_peer_tensor;
+        let right_peer_tensor = &self.left_peer_tensor;
 
         self.communicator.execute_communication(
             &mut communication_tensor,
@@ -48,106 +53,106 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
             true,
             false,
             &mut |c, t| {
-
-                t.raw.substract_inplace(&self.my_weight, c.stream_ptr);
-                tracing::debug!("start compress");
+                tracing::debug!("start compress diff");
+                t.raw.substract_inplace(&self.my_tensor, c.stream_ptr);
                 let compressed_tensor = t
                     .raw
                     .compress(&self.compression_method, c.nranks, c.stream_ptr, -1)
                     .expect("cannot compress tensor");
 
-                let temp_buf = CUDA_DEVICE_MEMORY_POOL[t.raw.device_id]
+                tracing::debug!("start communication with peers");
+                let lrecv_buf = CUDA_DEVICE_MEMORY_POOL[t.raw.device_id]
                     .try_pull(
-                        compressed_tensor.num_elem_allocated * compressed_tensor.dtype.bytes(),
+                        compressed_tensor.num_elements_allocated()
+                            * compressed_tensor.dtype().bytes(),
                     )
                     .expect("cannot allocate cuda memory");
-                let mut temp_tensor = BaguaTensorRaw {
-                    ptr: temp_buf.ptr,
-                    num_elem_allocated: compressed_tensor.num_elem_allocated,
-                    dtype: compressed_tensor.dtype.clone(),
-                    num_elem: compressed_tensor.num_elem,
-                    device_id: compressed_tensor.device_id,
-                    pool_allocation: Some(temp_buf),
+                let mut lrecv_tensor = BaguaTensorRaw {
+                    ptr: lrecv_buf.ptr,
+                    num_elem_allocated: compressed_tensor.num_elements_allocated(),
+                    dtype: compressed_tensor.dtype().clone(),
+                    num_elem: compressed_tensor.num_elements(),
+                    device_id: compressed_tensor.device_id(),
+                    pool_allocations: vec![Arc::new(lrecv_buf)],
+                };
+                
+                let rrecv_buf = CUDA_DEVICE_MEMORY_POOL[t.raw.device_id]
+                    .try_pull(
+                        compressed_tensor.num_elements_allocated()
+                            * compressed_tensor.dtype().bytes(),
+                    )
+                    .expect("cannot allocate cuda memory");
+                let mut rrecv_tensor = BaguaTensorRaw {
+                    ptr: rrecv_buf.ptr,
+                    num_elem_allocated: compressed_tensor.num_elements_allocated(),
+                    dtype: compressed_tensor.dtype().clone(),
+                    num_elem: compressed_tensor.num_elements(),
+                    device_id: compressed_tensor.device_id(),
+                    pool_allocations: vec![Arc::new(rrecv_buf)],
                 };
 
-                tracing::debug!("start communication with peers");
                 match peer_mode {
-                    PeerSelectionMode::ShiftOne => {
-                        if step % comm_interval == 0 {
-                            assert_eq!(
-                                c.nranks % 2,
-                                0,
-                                "you cannot use decentralized algorithm with average_all off when there are odd number of ranks, current n_ranks {}",
-                                c.nranks
-                            );
-                            let comm_step = step / comm_interval;
-                            let peer_rank = if c.rank < c.nranks / 2 {
-                                ((comm_step + c.rank) % ((c.nranks + 1) / 2)) + (c.nranks / 2)
-                            } else {
-                                (c.rank - (c.nranks / 2) - comm_step).rem_euclid(c.nranks / 2)
-                            } as i32;
-                            tracing::debug!("rank {} peer_rank {}", c.rank, peer_rank);
+                    PeerSelectionMode::Ring => {
+                        {
+                            let left_peer_rank = ((c.rank - 1 + c.nranks) % c.nranks) as i32;
+                            let right_peer_rank = ((c.rank + 1)  % c.nranks) as i32;
+
                             {
                                 let _guard = NCCLGroupGuard::new();
-                                c.send(&compressed_tensor, peer_rank);
-                                c.recv(&mut temp_tensor, peer_rank);
+                                c.send(compressed_tensor.as_ref(), left_peer_rank);
+                                c.send(compressed_tensor.as_ref(), right_peer_rank);
+                                c.recv(&mut lrecv_tensor, left_peer_rank);
+                                c.recv(&mut rrecv_tensor, right_peer_rank);
                             }
                         }
+                    },
+                    PeerSelectionMode::All => {
+                        unimplemented!()
+                    },
+                    PeerSelectionMode::ShiftOne => {
+                        unimplemented!()
                     }
-                }
+                };
 
                 tracing::debug!("start decompress");
                 t.raw.decompress_from(
                     &self.compression_method,
                     c.nranks,
-                    &compressed_tensor,
+                    &lrecv_tensor,
                     c.stream_ptr,
                 );
-                self.my_weight.add_inplace(&t.raw, c.stream_ptr);
+                
+                // FIXME
+                /* left_peer_tensor.add_inplace(&t.raw, c.stream_ptr);
                 t.raw.decompress_from(
                     &self.compression_method,
                     c.nranks,
-                    &temp_tensor,
+                    &rrecv_tensor,
                     c.stream_ptr,
                 );
-                self.peer_weight.add_inplace(&t.raw, c.stream_ptr);
+                right_peer_tensor.add_inplace(&t.raw, c.stream_ptr);
+
+                t.raw.decompress_from(
+                     &self.compression_method,
+                     c.nranks,
+                     &compressed_tensor,
+                     c.stream_ptr,
+                );
+                t.raw.add_inplace(&self.my_tensor, c.stream_ptr);
+                */
             },
         );
-
-        if step % comm_interval == 0 {
-            // TODO: move this to .then() python API instead of hard code this in op
-            let post_backward_comm_op = BaguaScheduledCommOp {
-                bucket: bucket.clone(),
-                ops: vec![Arc::new(DecentralizedLowPrecisionSynchronousPostStep {
-                    communicator: self.communicator.clone(),
-                    my_weight: self.my_weight,
-                    peer_weight: self.peer_weight,
-                })],
-                event_channel: Default::default(),
-            };
-
-            comm_op_channels
-                .not_waited_post_backward_events_sender
-                .send(post_backward_comm_op.event_channel.clone())
-                .expect("cannot send post backward event");
-            comm_op_channels
-                .post_backward_channel_sender
-                .send(post_backward_comm_op)
-                .expect("cannot send post backward op");
-        }
-
-        *self.step.lock() += 1;
     }
 }
 
 #[derive(Debug)]
-pub struct DecentralizedLowPrecisionSynchronousPostStep {
+pub struct DecentralizedLowPrecisionSynchronousAverageStep {
     pub communicator: BaguaCommunicator,
-    pub my_weight: BaguaTensorRaw,
-    pub peer_weight: BaguaTensorRaw,
+    pub left_peer_weight: BaguaTensorRaw,
+    pub right_peer_weight: BaguaTensorRaw,
 }
 
-impl CommOpTrait for DecentralizedLowPrecisionSynchronousPostStep {
+impl CommOpTrait for DecentralizedLowPrecisionSynchronousAverageStep {
     fn execute_background_communication(
         &self,
         bucket: Arc<BaguaBucket>,
@@ -163,8 +168,9 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronousPostStep {
             true,
             &mut |c, t| {
                 // calculate averaged weight
-                t.raw.clone_from(&self.my_weight, c.stream_ptr);
-                t.raw.average_inplace(&self.peer_weight, c.stream_ptr);
+                t.raw.add_inplace(&self.left_peer_weight, c.stream_ptr);
+                t.raw.add_inplace(&self.right_peer_weight, c.stream_ptr);
+                t.raw.divide_inplace(c.stream_ptr, 3 as f32);
             },
         );
     }

@@ -1,7 +1,10 @@
 use crate::comm_ops::centralized_full_precision_synchronous::CentralizedFullPrecisionSynchronous;
 use crate::comm_ops::centralized_low_precision_synchronous::CentralizedLowPrecisionSynchronous;
 use crate::comm_ops::decentralized_full_precision_synchronous::{
-    DecentralizedFullPrecisionSynchronous, PeerSelectionMode,
+    DecentralizedFullPrecisionSynchronous, PeerSelectionMode, 
+};
+use crate::comm_ops::decentralized_low_precision_synchronous::{
+   DecentralizedLowPrecisionSynchronous, DecentralizedLowPrecisionSynchronousAverageStep,
 };
 use crate::comm_ops::python_ffi_op::PythonFFIOp;
 use crate::comm_ops::CommOpTrait;
@@ -136,17 +139,17 @@ pub trait RawBaguaTensor: Debug {
         }
     }
 
-    pub fn substract_inplace(&mut self, other: &Self, stream_ptr: u64) {
-        assert_eq!(self.dtype, other.dtype);
-        assert_eq!(self.num_elem, other.num_elem);
-        let tensor_ptr = self.ptr;
-        let total_num_elem = self.num_elem;
+    fn substract_inplace(&mut self, other: &dyn RawBaguaTensor, stream_ptr: u64) {
+        assert_eq!(self.dtype(), other.dtype());
+        assert_eq!(self.num_elements(), other.num_elements());
+        let tensor_ptr = self.data_ptr();
+        let total_num_elem = self.num_elements();
         unsafe {
-            match self.dtype {
+            match self.dtype() {
                 BaguaTensorDtype::F32 => {
                     kernels::substract_inplace_f32_host(
                         tensor_ptr as _,
-                        other.ptr as _,
+                        other.data_ptr() as _,
                         total_num_elem as i32,
                         stream_ptr as _,
                     );
@@ -154,7 +157,7 @@ pub trait RawBaguaTensor: Debug {
                 BaguaTensorDtype::F16 => {
                     kernels::substract_inplace_f16_host(
                         tensor_ptr as _,
-                        other.ptr as _,
+                        other.data_ptr() as _,
                         total_num_elem as i32,
                         stream_ptr as _,
                     );
@@ -172,17 +175,17 @@ pub trait RawBaguaTensor: Debug {
         }
     }
 
-    pub fn add_inplace(&mut self, other: &Self, stream_ptr: u64) {
-        assert_eq!(self.dtype, other.dtype);
-        assert_eq!(self.num_elem, other.num_elem);
-        let tensor_ptr = self.ptr;
-        let total_num_elem = self.num_elem;
+    fn add_inplace(&mut self, other: &dyn RawBaguaTensor, stream_ptr: u64) {
+        assert_eq!(self.dtype(), other.dtype());
+        assert_eq!(self.num_elements(), other.num_elements());
+        let tensor_ptr = self.data_ptr();
+        let total_num_elem = self.num_elements();
         unsafe {
-            match self.dtype {
+            match self.dtype() {
                 BaguaTensorDtype::F32 => {
                     kernels::add_inplace_f32_host(
                         tensor_ptr as _,
-                        other.ptr as _,
+                        other.data_ptr() as _,
                         total_num_elem as i32,
                         stream_ptr as _,
                     );
@@ -190,7 +193,7 @@ pub trait RawBaguaTensor: Debug {
                 BaguaTensorDtype::F16 => {
                     kernels::add_inplace_f16_host(
                         tensor_ptr as _,
-                        other.ptr as _,
+                        other.data_ptr() as _,
                         total_num_elem as i32,
                         stream_ptr as _,
                     );
@@ -988,8 +991,9 @@ impl BaguaBucket {
         peer_selection_mode: String,
         communication_interval: usize,
         compression: Option<String>,
-        my_weight: &mut BaguaTensorPy,
-        peer_weight: &mut BaguaTensorPy,
+        my_tensor: &mut BaguaTensor,
+        left_peer_tensor: &mut BaguaTensor,
+        right_peer_tensor: &mut BaguaTensor
     ) {
         let communicator =
             BaguaCommunicator::new(communicator_internode, communicator_intranode, hierarchical)
@@ -1008,19 +1012,25 @@ impl BaguaBucket {
                 communication_interval,
             }),
             Some(x) => match x.as_str() {
-                "MinMaxUInt8" => Arc::new(DecentralizedLowPrecisionSynchronous {
+                // FIXME
+/*                "MinMaxUInt8" => Arc::new(DecentralizedLowPrecisionSynchronous {
                      communicator,
                      peer_selection_mode: match peer_selection_mode.as_str() {
-                         "shift_one" => PeerSelectionMode::ShiftOne,
+                         "ring" => PeerSelectionMode::Ring,
                          &_ => {
-                             unimplemented!("unsupported peer_selection_mode for decentralized algorithm (should be `all` or `shift_one`)")
+                             unimplemented!("unsupported peer_selection_mode for decentralized algorithm (should be `ring`)")
                          }
                      },
                      step: Default::default(),
                      communication_interval,
-                     &mut my_weight.inner,
-                     &mut peer_weight.inner,
+                     my_tensor.inner.write().raw.as_mut(),
+                     left_peer_tensor.inner.write().raw.as_mut(),
+                     right_peer_tensor.inner.write().raw.as_mut(),
+                     compression_method: TensorCompressionMethod::MinMaxUInt8(
+                         MinMaxUInt8CompressionParameters {},
+                     ),
                 }),
+                */
                 _ => {
                     unimplemented!()
                 }

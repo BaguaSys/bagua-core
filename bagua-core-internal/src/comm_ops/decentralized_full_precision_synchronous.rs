@@ -11,6 +11,7 @@ use std::sync::Arc;
 pub enum PeerSelectionMode {
     All,
     ShiftOne,
+    Ring
 }
 
 #[derive(Debug)]
@@ -100,6 +101,8 @@ impl CommOpTrait for DecentralizedFullPrecisionSynchronous {
                             }
                             peer_tensor.average_inplace(&t.raw, c.stream_ptr);
                         }
+                    },
+                    PeerSelectionMode::Ring => {
                     }
                 }
             },
