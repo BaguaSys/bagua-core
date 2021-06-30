@@ -2,6 +2,9 @@
 #![allow(non_upper_case_globals)]
 #![allow(non_snake_case)]
 #![allow(dead_code)]
+
+use derivative::Derivative;
+
 pub const DeviceType_CPU: DeviceType = 0;
 pub const DeviceType_CUDA: DeviceType = 1;
 pub const DeviceType_MKLDNN: DeviceType = 2;
@@ -22,6 +25,7 @@ pub const DeviceType_COMPILE_TIME_MAX_DEVICE_TYPES: DeviceType = 16;
 pub type DeviceType = i8;
 pub type DeviceIndex = i8;
 pub type PyObject = u8;
+pub type size_t = ::std::os::raw::c_ulong;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -72,7 +76,7 @@ pub struct Allocator {
 pub struct StorageImpl {
     pub _base: IntrusivePtrTarget,
     pub data_ptr_: DataPtr,
-    pub size_bytes_: usize,
+    pub size_bytes_: size_t,
     pub resizable_: bool,
     pub received_cuda_: bool,
     pub allocator_: *mut Allocator,
@@ -87,8 +91,11 @@ pub union SizesAndStrides__bindgen_ty_1 {
 }
 
 #[repr(C)]
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct SizesAndStrides {
-    pub size_: usize,
+    pub size_: size_t,
+    #[derivative(Debug = "ignore")]
     pub __bindgen_anon_1: SizesAndStrides__bindgen_ty_1,
 }
 
@@ -127,6 +134,7 @@ pub struct DispatchKeySet {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct TensorImpl {
     pub _base: IntrusivePtrTarget,
     pub storage_: Storage,

@@ -400,6 +400,8 @@ impl RawBaguaTensor for TorchTensorRaw {
     }
 
     fn device_id(&self) -> usize {
+        dbg!(self.extract_torch_c_data());
+        dbg!(self.extract_storage());
         let storage_data_ptr = &self.extract_storage().data_ptr_;
         assert_eq!(
             storage_data_ptr.device_.type_, DeviceType_CUDA,
@@ -535,35 +537,6 @@ pub struct BaguaTensor {
 }
 
 impl BaguaTensor {
-    pub fn mark_comm_ready(&self, cuda_event_ptr: u64) {
-        if cuda_event_ptr == 0 {
-            tracing::info!("mark comm ready with an event 0, ignoring event");
-        }
-        match TELEMETRY.as_ref() {
-            None => {}
-            Some(ref x) => {
-                x.lock().new_tensor_ready(self.inner.read().name.as_str());
-            }
-        }
-        let mut guard = self.inner.write();
-        guard.ready_for_comm = true;
-        guard.ready_cuda_event_ptr = cuda_event_ptr;
-    }
-
-    pub fn mark_comm_not_ready(&self) {
-        self.inner.write().ready_for_comm = false;
-    }
-
-    pub fn name(&self) -> String {
-        self.inner.read().name.clone()
-    }
-
-    pub fn ready_for_comm(&self) -> bool {
-        self.inner.read().ready_for_comm
-    }
-}
-
-impl BaguaTensor {
     pub fn new(
         name: String,
         ptr: u64,
@@ -601,6 +574,33 @@ impl BaguaTensor {
                 ready_cuda_event_ptr: 0,
             })),
         }
+    }
+
+    pub fn mark_comm_ready(&self, cuda_event_ptr: u64) {
+        if cuda_event_ptr == 0 {
+            tracing::info!("mark comm ready with an event 0, ignoring event");
+        }
+        match TELEMETRY.as_ref() {
+            None => {}
+            Some(ref x) => {
+                x.lock().new_tensor_ready(self.inner.read().name.as_str());
+            }
+        }
+        let mut guard = self.inner.write();
+        guard.ready_for_comm = true;
+        guard.ready_cuda_event_ptr = cuda_event_ptr;
+    }
+
+    pub fn mark_comm_not_ready(&self) {
+        self.inner.write().ready_for_comm = false;
+    }
+
+    pub fn name(&self) -> String {
+        self.inner.read().name.clone()
+    }
+
+    pub fn ready_for_comm(&self) -> bool {
+        self.inner.read().ready_for_comm
     }
 
     pub fn compress(&self, method: &str, n_chunks: usize, target_chunk: i32) -> Self {
@@ -679,7 +679,7 @@ impl BaguaTensor {
         }
     }
 
-    pub fn ptr(&self) -> u64 {
+    pub fn data_ptr(&self) -> u64 {
         self.inner.read().raw.data_ptr()
     }
 
