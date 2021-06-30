@@ -1,4 +1,4 @@
-use crate::datatypes::{BaguaCommunicationTensor, BaguaTensor, BaguaTensorRaw, RawBaguaTensor};
+use crate::datatypes::{BaguaCommunicationTensor, BaguaTensor, BaguaTensorRaw, RawBaguaTensor, BaguaReductionOp};
 use crate::BaguaCoreError;
 use itertools::Itertools;
 use std::sync::Arc;
@@ -66,8 +66,8 @@ impl BaguaSingleCommunicator {
         self.inner.device_id
     }
 
-    pub fn allreduce(&self, tensor: &mut BaguaTensor) {
-        self.inner.allreduce(tensor.inner.write().raw.as_mut());
+    pub fn allreduce(&self, tensor: &mut BaguaTensor, op: BaguaReductionOp) {
+        self.inner.allreduce(tensor.inner.write().raw.as_mut(), op);
     }
 
     pub fn broadcast(&self, tensor: &mut BaguaTensor, root_rank: i32) {
@@ -75,9 +75,9 @@ impl BaguaSingleCommunicator {
             .broadcast(tensor.inner.write().raw.as_mut(), root_rank);
     }
 
-    pub fn reduce(&self, tensor: &mut BaguaTensor, root_rank: i32) {
+    pub fn reduce(&self, tensor: &mut BaguaTensor, root_rank: i32, op: BaguaReductionOp) {
         self.inner
-            .reduce(tensor.inner.write().raw.as_mut(), root_rank);
+            .reduce(tensor.inner.write().raw.as_mut(), root_rank, op);
     }
 
     pub fn send(&self, tensor: &mut BaguaTensor, peer_rank: i32) {
@@ -174,7 +174,7 @@ impl BaguaHierarchicalCommunicatorLeader {
         let stream_ptr = intranode_communicator.stream_ptr;
         assert_eq!(communication_tensor.stream_ptr, stream_ptr);
         tracing::debug!("reduce start");
-        intranode_communicator.reduce(&mut communication_tensor.raw, 0);
+        intranode_communicator.reduce(&mut communication_tensor.raw, 0, BaguaReductionOp::SUM);
         tracing::debug!("reduce done");
         if average {
             communication_tensor
@@ -201,7 +201,7 @@ pub struct BaguaHierarchicalCommunicatorWorker {
 impl BaguaHierarchicalCommunicatorWorker {
     pub fn hierarchical_worker_pre(&self, communication_tensor: &mut BaguaCommunicationTensor) {
         let intranode_communicator = self.intranode.inner.clone();
-        intranode_communicator.reduce(&mut communication_tensor.raw, 0);
+        intranode_communicator.reduce(&mut communication_tensor.raw, 0, BaguaReductionOp::SUM);
     }
 
     pub fn hierarchical_worker_post(&self, communication_tensor: &mut BaguaCommunicationTensor) {
@@ -359,23 +359,23 @@ impl BaguaCommunicatorInner {
         }
     }
 
-    pub fn reduce(&self, tensor: &mut dyn RawBaguaTensor, root_rank: i32) {
+    pub fn reduce(&self, tensor: &mut dyn RawBaguaTensor, root_rank: i32, op: BaguaReductionOp) {
         let communicator_ptr = self.comm_ptr;
         let tensor_ptr = tensor.data_ptr();
         let total_num_elem = tensor.num_elements_allocated();
         let nccl_tensor_type = tensor.dtype().to_nccl_datatype();
 
         unsafe {
-            cpp::cpp!([tensor_ptr as "void *", root_rank as "int", total_num_elem as "size_t", communicator_ptr as "Al::NCCLCommunicator *", nccl_tensor_type as "ncclDataType_t"]
+            cpp::cpp!([tensor_ptr as "void *", root_rank as "int", total_num_elem as "size_t", communicator_ptr as "Al::NCCLCommunicator *", nccl_tensor_type as "ncclDataType_t", op as "uint8_t"]
             {
                 if (nccl_tensor_type == ncclDataType_t::ncclFloat32) {
-                    Al::Reduce<Al::NCCLBackend>(static_cast<float*>(tensor_ptr), total_num_elem, Al::ReductionOperator::sum, root_rank, *communicator_ptr);
+                    Al::Reduce<Al::NCCLBackend>(static_cast<float*>(tensor_ptr), total_num_elem, static_cast<Al::ReductionOperator>(op), root_rank, *communicator_ptr);
                 } else if (nccl_tensor_type == ncclDataType_t::ncclFloat16) {
-                    Al::Reduce<Al::NCCLBackend>(static_cast<__half*>(tensor_ptr), total_num_elem, Al::ReductionOperator::sum, root_rank, *communicator_ptr);
+                    Al::Reduce<Al::NCCLBackend>(static_cast<__half*>(tensor_ptr), total_num_elem, static_cast<Al::ReductionOperator>(op), root_rank, *communicator_ptr);
                 } else if (nccl_tensor_type == ncclDataType_t::ncclUint8) {
-                    Al::Reduce<Al::NCCLBackend>(static_cast<unsigned char*>(tensor_ptr), total_num_elem, Al::ReductionOperator::sum, root_rank, *communicator_ptr);
+                    Al::Reduce<Al::NCCLBackend>(static_cast<unsigned char*>(tensor_ptr), total_num_elem, static_cast<Al::ReductionOperator>(op), root_rank, *communicator_ptr);
                 } else if (nccl_tensor_type == ncclDataType_t::ncclInt64) {
-                    Al::Reduce<Al::NCCLBackend>(static_cast<long long int*>(tensor_ptr), total_num_elem, Al::ReductionOperator::sum, root_rank, *communicator_ptr);
+                    Al::Reduce<Al::NCCLBackend>(static_cast<long long int*>(tensor_ptr), total_num_elem, static_cast<Al::ReductionOperator>(op), root_rank, *communicator_ptr);
                 } else {
                     fputs("unsupport tensor data type.\n", stderr);
                     abort();
@@ -587,23 +587,23 @@ impl BaguaCommunicatorInner {
         }
     }
 
-    pub fn allreduce(&self, tensor: &mut dyn RawBaguaTensor) {
+    pub fn allreduce(&self, tensor: &mut dyn RawBaguaTensor, op: BaguaReductionOp) {
         let communicator_ptr = self.comm_ptr;
         let tensor_ptr = tensor.data_ptr();
         let total_num_elem = tensor.num_elements_allocated();
         let nccl_tensor_type = tensor.dtype().to_nccl_datatype();
 
         unsafe {
-            cpp::cpp!([tensor_ptr as "void *", total_num_elem as "size_t", communicator_ptr as "Al::NCCLCommunicator *", nccl_tensor_type as "ncclDataType_t"]
+            cpp::cpp!([tensor_ptr as "void *", total_num_elem as "size_t", communicator_ptr as "Al::NCCLCommunicator *", nccl_tensor_type as "ncclDataType_t", op as "uint8_t"]
             {
                 if (nccl_tensor_type == ncclDataType_t::ncclFloat32) {
-                    Al::Allreduce<Al::NCCLBackend>(static_cast<float*>(tensor_ptr), total_num_elem, Al::ReductionOperator::sum, *communicator_ptr);
+                    Al::Allreduce<Al::NCCLBackend>(static_cast<float*>(tensor_ptr), total_num_elem, static_cast<Al::ReductionOperator>(op), *communicator_ptr);
                 } else if (nccl_tensor_type == ncclDataType_t::ncclFloat16) {
-                    Al::Allreduce<Al::NCCLBackend>(static_cast<__half*>(tensor_ptr), total_num_elem, Al::ReductionOperator::sum, *communicator_ptr);
+                    Al::Allreduce<Al::NCCLBackend>(static_cast<__half*>(tensor_ptr), total_num_elem, static_cast<Al::ReductionOperator>(op), *communicator_ptr);
                 } else if (nccl_tensor_type == ncclDataType_t::ncclUint8) {
-                    Al::Allreduce<Al::NCCLBackend>(static_cast<unsigned char*>(tensor_ptr), total_num_elem, Al::ReductionOperator::sum, *communicator_ptr);
+                    Al::Allreduce<Al::NCCLBackend>(static_cast<unsigned char*>(tensor_ptr), total_num_elem, static_cast<Al::ReductionOperator>(op), *communicator_ptr);
                 } else if (nccl_tensor_type == ncclDataType_t::ncclInt64) {
-                    Al::Allreduce<Al::NCCLBackend>(static_cast<long long int*>(tensor_ptr), total_num_elem, Al::ReductionOperator::sum, *communicator_ptr);
+                    Al::Allreduce<Al::NCCLBackend>(static_cast<long long int*>(tensor_ptr), total_num_elem, static_cast<Al::ReductionOperator>(op), *communicator_ptr);
                 } else {
                     fputs("unsupport tensor data type.\n", stderr);
                     abort();
