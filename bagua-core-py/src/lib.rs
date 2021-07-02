@@ -5,7 +5,6 @@ use bagua_core_internal::datatypes::{
     BaguaBucket, BaguaReductionOp, BaguaTensor, BaguaTensorDtype,
 };
 use bagua_core_internal::BaguaCommBackend;
-use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use std::collections::HashMap;
 use numpy::{IntoPyArray, PyArray1};
@@ -84,19 +83,19 @@ impl BaguaSingleCommunicatorPy {
     pub fn alltoall_v(
         &self,
         send_tensor: &mut BaguaTensorPy,
-        send_counts: &BaguaTensorPy,
-        send_displs: &BaguaTensorPy,
+        send_counts: Vec<usize>,
+        send_displs: Vec<usize>,
         recv_tensor: &mut BaguaTensorPy,
-        recv_counts: &BaguaTensorPy,
-        recv_displs: &BaguaTensorPy,
+        recv_counts: Vec<usize>,
+        recv_displs: Vec<usize>,
     ) {
         self.inner.alltoall_v(
             &mut send_tensor.inner,
-            &send_counts.inner,
-            &send_displs.inner,
+            &send_counts,
+            &send_displs,
             &mut recv_tensor.inner,
-            &recv_counts.inner,
-            &recv_displs.inner,
+            &recv_counts,
+            &recv_displs,
         )
     }
 
@@ -163,7 +162,7 @@ impl BaguaTensorPy {
                     .expect("must pass valid torch tensor")
                     .extract()?,
                 bagua_dtype,
-            ),
+            )?,
         })
     }
 
@@ -244,24 +243,34 @@ impl BaguaCommBackendPy {
     }
 
     /// calling a second time will overwrite previous buckets
-    pub fn register_ordered_buckets(&mut self, buckets: Vec<PyRef<BaguaBucketPy>>) -> PyResult<()> {
+    pub fn register_ordered_buckets(
+        &mut self,
+        buckets: Vec<PyRef<BaguaBucketPy>>,
+        py: Python,
+    ) -> PyResult<()> {
         let mut buckets_inner = Vec::with_capacity(buckets.len());
         for b in buckets.iter() {
             buckets_inner.push(&b.inner)
         }
-        self.inner
-            .register_ordered_buckets(buckets_inner.as_slice())
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
+        py.allow_threads(|| {
+            self.inner
+                .register_ordered_buckets(buckets_inner.as_slice())
+        })
+        .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
     pub fn mark_communication_ready(
         &mut self,
         tensor: PyRef<BaguaTensorPy>,
         ready_cuda_event_ptr: u64,
+        py: Python,
     ) -> PyResult<()> {
-        self.inner
-            .mark_communication_ready(&tensor.inner, ready_cuda_event_ptr)
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
+        let inner = &tensor.inner;
+        py.allow_threads(|| {
+            self.inner
+                .mark_communication_ready(inner, ready_cuda_event_ptr)
+        })
+        .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
     pub fn wait_pending_comm_ops(&self, py: Python) -> PyResult<usize> {
@@ -269,15 +278,13 @@ impl BaguaCommBackendPy {
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
-    pub fn start_upload_telemetry(&self, skip: bool) -> PyResult<()> {
-        self.inner
-            .start_upload_telemetry(skip)
+    pub fn start_upload_telemetry(&self, skip: bool, py: Python) -> PyResult<()> {
+        py.allow_threads(|| self.inner.start_upload_telemetry(skip))
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
-    pub fn execute_post_backward_comm_ops(&self) -> PyResult<usize> {
-        self.inner
-            .execute_post_backward_comm_ops()
+    pub fn execute_post_backward_comm_ops(&self, py: Python) -> PyResult<usize> {
+        py.allow_threads(|| self.inner.execute_post_backward_comm_ops())
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
@@ -398,6 +405,9 @@ impl BaguaBucketPy {
 
 #[pymodule]
 fn bagua_core(_py: Python, m: &PyModule) -> PyResult<()> {
+    if std::env::var("LOG_LEVEL").is_err() {
+        std::env::set_var("LOG_LEVEL", "WARN");
+    }
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_env("LOG_LEVEL"))
         .init();
