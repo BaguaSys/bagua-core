@@ -549,6 +549,26 @@ void divide_inplace_f16_host(__half *x, float D_, int N, cudaStream_t stream) {
     CUDACHECK(cudaGetLastError());
 }
 
+void add_inplace_f32_host(float *x, float *y, int N, cudaStream_t stream) {
+    add_inplace_f32<<<DIVUP(N, 1024), 1024, 0, stream>>>(x, y, N);
+    CUDACHECK(cudaGetLastError());
+}
+
+void add_inplace_f16_host(__half *x, __half *y, int N, cudaStream_t stream) {
+    add_inplace_f16<<<DIVUP(N, 1024), 1024, 0, stream>>>(x, y, N);
+    CUDACHECK(cudaGetLastError());
+}
+
+void substract_inplace_f32_host(float *x, float *y, int N, cudaStream_t stream) {
+    substract_inplace_f32<<<DIVUP(N, 1024), 1024, 0, stream>>>(x, y, N);
+    CUDACHECK(cudaGetLastError());
+}
+
+void substract_inplace_f16_host(__half *x, __half *y, int N, cudaStream_t stream) {
+    substract_inplace_f16<<<DIVUP(N, 1024), 1024, 0, stream>>>(x, y, N);
+    CUDACHECK(cudaGetLastError());
+}
+
 void average_inplace_f32_host(float *x, float *y, int N, cudaStream_t stream) {
     average_inplace_f32<<<DIVUP(N, 1024), 1024, 0, stream>>>(x, y, N);
     CUDACHECK(cudaGetLastError());
@@ -558,7 +578,6 @@ void average_inplace_f16_host(__half *x, __half *y, int N, cudaStream_t stream) 
     average_inplace_f16<<<DIVUP(N, 1024), 1024, 0, stream>>>(x, y, N);
     CUDACHECK(cudaGetLastError());
 }
-
 //// decentralize, recvbuf should get the average of sendbuf and peer's sendbuf
 //ncclResult_t ncclPeerAverage(void *sendbuf, void *recvbuf, size_t sendcount,
 //                             int peer_rank, ncclDataType_t datatype, ncclComm_t comm, cudaStream_t stream) {

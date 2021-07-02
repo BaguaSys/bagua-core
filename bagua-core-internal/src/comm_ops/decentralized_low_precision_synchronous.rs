@@ -13,13 +13,11 @@ pub struct DecentralizedLowPrecisionSynchronous {
     pub peer_selection_mode: PeerSelectionMode,
     pub step: Mutex<usize>,
     pub communication_interval: usize,
-    pub my_tensor: BaguaTensorRaw,
-    pub left_peer_tensor: BaguaTensorRaw,
-    pub right_peer_tensor: BaguaTensorRaw,
     pub compression_method: TensorCompressionMethod,
 }
 
 impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
+
     fn execute_background_communication(
         &self,
         bucket: Arc<BaguaBucket>,
@@ -42,10 +40,11 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
             },
         };
 
+        let weight_tensor = bucket_guard.get_state_tensor("weight");
+        let mut left_peer_tensor = bucket_guard.get_state_tensor("left_peer_weight");
+        let mut right_peer_tensor = bucket_guard.get_state_tensor("right_peer_weight");
+        
         let peer_mode = &self.peer_selection_mode;
-
-        let left_peer_tensor = &self.left_peer_tensor;
-        let right_peer_tensor = &self.left_peer_tensor;
 
         self.communicator.execute_communication(
             &mut communication_tensor,
@@ -54,7 +53,7 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
             false,
             &mut |c, t| {
                 tracing::debug!("start compress diff");
-                t.raw.substract_inplace(&self.my_tensor, c.stream_ptr);
+                t.raw.substract_inplace(&weight_tensor, c.stream_ptr);
                 let compressed_tensor = t
                     .raw
                     .compress(&self.compression_method, c.nranks, c.stream_ptr, -1)
@@ -120,10 +119,9 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
                     c.nranks,
                     &lrecv_tensor,
                     c.stream_ptr,
-                );
-                
-                // FIXME
-                /* left_peer_tensor.add_inplace(&t.raw, c.stream_ptr);
+                ); 
+                left_peer_tensor.add_inplace(&t.raw, c.stream_ptr);
+
                 t.raw.decompress_from(
                     &self.compression_method,
                     c.nranks,
@@ -132,14 +130,15 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
                 );
                 right_peer_tensor.add_inplace(&t.raw, c.stream_ptr);
 
-                t.raw.decompress_from(
+                // FIXME
+/*                t.raw.decompress_from(
                      &self.compression_method,
                      c.nranks,
                      &compressed_tensor,
                      c.stream_ptr,
                 );
-                t.raw.add_inplace(&self.my_tensor, c.stream_ptr);
                 */
+                t.raw.add_inplace(&weight_tensor, c.stream_ptr);
             },
         );
     }

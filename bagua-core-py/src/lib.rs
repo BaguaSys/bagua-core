@@ -7,6 +7,7 @@ use bagua_core_internal::datatypes::{
 use bagua_core_internal::BaguaCommBackend;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
+use std::collections::HashMap;
 use numpy::{IntoPyArray, PyArray1};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
@@ -313,6 +314,19 @@ impl BaguaBucketPy {
             .collect()
     }
 
+    pub fn states(&self) -> HashMap<String, BaguaTensorPy> {
+        self.inner
+            .states()
+            .iter()
+            .map(|(k, v)| (k.clone(), BaguaTensorPy {inner: v.clone()}))
+            .collect()
+    }
+
+    pub fn set_state(&mut self, name: String, tensor: PyRef<BaguaTensorPy>) -> PyResult<()>{
+        self.inner.set_state(name, (*tensor).inner.clone());   
+        Ok(())
+    }
+
     pub fn append_python_op(&mut self, op: &PyAny) -> PyResult<()> {
         assert!(op.is_callable(), "python op should be a callable");
         self.inner.append_python_op(op.into_py(op.py()));
@@ -351,9 +365,6 @@ impl BaguaBucketPy {
         peer_selection_mode: String,
         communication_interval: usize,
         compression: Option<String>,
-        my_tensor: &mut BaguaTensorPy,
-        left_peer_tensor: &mut BaguaTensorPy,
-        right_peer_tensor: &mut BaguaTensorPy,
     ) -> PyResult<()> {
         self.inner.append_decentralized_synchronous_op(
             communicator_internode.map(|x| &x.inner),
@@ -362,9 +373,6 @@ impl BaguaBucketPy {
             peer_selection_mode,
             communication_interval,
             compression,
-            &mut my_tensor.inner,
-            &mut left_peer_tensor.inner,
-            &mut right_peer_tensor.inner,
         );
         Ok(())
     }

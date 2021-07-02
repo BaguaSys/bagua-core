@@ -18,6 +18,7 @@ use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use parking_lot::{Mutex, RwLock};
 use sized_object_pool::DynamicPoolItem;
+use std::collections::HashMap;
 use std::ffi::c_void;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -771,6 +772,7 @@ pub struct BaguaBucketInner {
     pub tensors: Vec<BaguaTensor>,
     pub dtype: BaguaTensorDtype,
     pub comm_ops: Vec<Arc<dyn CommOpTrait + Sync + Send>>,
+    pub states: HashMap<String, BaguaTensor>,
 }
 
 pub struct BaguaCommunicationTensor<'b> {
@@ -819,7 +821,18 @@ impl BaguaBucketInner {
     pub fn total_allocated_bytes(&self) -> usize {
         self.total_num_elements_allocated() * self.dtype.bytes()
     }
-
+    
+    pub fn get_state_tensor(&self, name: &str) -> BaguaTensorRaw {
+        let tensor = self.states.get(name).unwrap();
+        BaguaTensorRaw {
+            ptr: tensor.data_ptr(),
+            num_elem: tensor.num_elements(),
+            dtype: tensor.inner.read().raw.dtype(),
+            num_elem_allocated: tensor.num_elements_allocated(),
+            device_id: tensor.device_id(),
+            pool_allocations: vec![],
+        }
+    }
     /// NOTE: this does not wait for memcpy finished
     // TODO: simplify args
     pub fn get_communication_tensor(
@@ -975,12 +988,21 @@ impl BaguaBucket {
                 tensors: tensors.iter().map(|x| (**x).clone()).collect(),
                 comm_ops: vec![],
                 dtype: tensors.first().unwrap().inner.read().raw.dtype().clone(),
+                states: Default::default(),
             })),
         })
     }
 
     pub fn tensors(&self) -> Vec<BaguaTensor> {
         self.inner.lock().tensors.clone()
+    }
+
+    pub fn states(&self) -> HashMap<String, BaguaTensor> {
+        self.inner.lock().states.clone()
+    }
+
+    pub fn set_state(&mut self, name: String, tensor: BaguaTensor) {
+        self.inner.lock().states.insert(name, tensor);
     }
 
     pub fn append_decentralized_synchronous_op(
@@ -991,9 +1013,6 @@ impl BaguaBucket {
         peer_selection_mode: String,
         communication_interval: usize,
         compression: Option<String>,
-        my_tensor: &mut BaguaTensor,
-        left_peer_tensor: &mut BaguaTensor,
-        right_peer_tensor: &mut BaguaTensor
     ) {
         let communicator =
             BaguaCommunicator::new(communicator_internode, communicator_intranode, hierarchical)
@@ -1012,8 +1031,7 @@ impl BaguaBucket {
                 communication_interval,
             }),
             Some(x) => match x.as_str() {
-                // FIXME
-/*                "MinMaxUInt8" => Arc::new(DecentralizedLowPrecisionSynchronous {
+               "MinMaxUInt8" => Arc::new(DecentralizedLowPrecisionSynchronous {
                      communicator,
                      peer_selection_mode: match peer_selection_mode.as_str() {
                          "ring" => PeerSelectionMode::Ring,
@@ -1023,14 +1041,10 @@ impl BaguaBucket {
                      },
                      step: Default::default(),
                      communication_interval,
-                     my_tensor.inner.write().raw.as_mut(),
-                     left_peer_tensor.inner.write().raw.as_mut(),
-                     right_peer_tensor.inner.write().raw.as_mut(),
                      compression_method: TensorCompressionMethod::MinMaxUInt8(
                          MinMaxUInt8CompressionParameters {},
                      ),
                 }),
-                */
                 _ => {
                     unimplemented!()
                 }
