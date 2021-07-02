@@ -917,6 +917,35 @@ impl BaguaBucketInner {
             pool_allocations: vec![],
         }
     }
+
+    pub fn init_state_tensor(&mut self, name: &str, tensor: &dyn RawBaguaTensor, stream_ptr: u64) {
+        let buffer = CUDA_DEVICE_MEMORY_POOL[tensor.device_id()]
+            .try_pull(
+                tensor.num_elements_allocated() * tensor.dtype().bytes(),
+            )
+            .expect("cannot allocate cuda memory");
+        
+        let mut t = BaguaTensorRaw {
+            ptr: buffer.ptr,
+            num_elem_allocated: tensor.num_elements_allocated(),
+            dtype: tensor.dtype().clone(),
+            num_elem: tensor.num_elements(),
+            device_id: tensor.device_id(),
+            pool_allocations: vec![Arc::new(buffer)],
+        };
+
+        t.clone_from(tensor, stream_ptr);
+
+        self.states.insert(String::from(name), BaguaTensor {
+            inner: Arc::new(RwLock::new(BaguaTensorInner {
+                name: String::from(name),
+                raw: Box::new(t),
+                ready_for_comm: false,
+                ready_cuda_event_ptr: 0,
+            })),
+        });
+    }
+
     /// NOTE: this does not wait for memcpy finished
     // TODO: simplify args
     pub fn get_communication_tensor(

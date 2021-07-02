@@ -130,14 +130,13 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
                 );
                 right_peer_tensor.add_inplace(&t.raw, c.stream_ptr);
 
-                // FIXME
-/*                t.raw.decompress_from(
+                t.raw.decompress_from(
                      &self.compression_method,
                      c.nranks,
-                     &compressed_tensor,
+                     compressed_tensor.as_ref(),
                      c.stream_ptr,
                 );
-                */
+
                 t.raw.add_inplace(&weight_tensor, c.stream_ptr);
             },
         );
@@ -147,8 +146,8 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
 #[derive(Debug)]
 pub struct DecentralizedLowPrecisionSynchronousAverageStep {
     pub communicator: BaguaCommunicator,
-    pub left_peer_weight: BaguaTensorRaw,
-    pub right_peer_weight: BaguaTensorRaw,
+    pub step: Mutex<usize>,
+    pub communication_interval: usize,
 }
 
 impl CommOpTrait for DecentralizedLowPrecisionSynchronousAverageStep {
@@ -157,9 +156,15 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronousAverageStep {
         bucket: Arc<BaguaBucket>,
         _comm_op_channels: &BaguaCommOpChannels,
     ) {
-        let bucket = bucket.inner.lock();
+        let bucket_guard = bucket.inner.lock();
         let stream_ptr = self.communicator.stream_ptr();
-        let mut communication_tensor = bucket.get_communication_tensor(stream_ptr, false, false);
+        let mut communication_tensor = bucket_guard.get_communication_tensor(stream_ptr, false, false);
+        
+        let step = { *self.step.lock() };
+
+        let left_peer_weight = bucket_guard.get_state_tensor("left_peer_weight");
+        let right_peer_weight = bucket_guard.get_state_tensor("right_peer_weight");
+
         self.communicator.execute_communication(
             &mut communication_tensor,
             false,
@@ -167,10 +172,12 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronousAverageStep {
             true,
             &mut |c, t| {
                 // calculate averaged weight
-                t.raw.add_inplace(&self.left_peer_weight, c.stream_ptr);
-                t.raw.add_inplace(&self.right_peer_weight, c.stream_ptr);
+                t.raw.add_inplace(&left_peer_weight, c.stream_ptr);
+                t.raw.add_inplace(&right_peer_weight, c.stream_ptr);
                 t.raw.divide_inplace(c.stream_ptr, 3 as f32);
             },
         );
+
+        *self.step.lock() += 1;
     }
 }
