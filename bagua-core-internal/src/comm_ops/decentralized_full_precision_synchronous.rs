@@ -7,7 +7,7 @@ use crate::{BaguaCommOpChannels, BaguaScheduledCommOp};
 use parking_lot::Mutex;
 use std::sync::Arc;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum PeerSelectionMode {
     All,
     ShiftOne,
@@ -103,6 +103,7 @@ impl CommOpTrait for DecentralizedFullPrecisionSynchronous {
                         }
                     },
                     PeerSelectionMode::Ring => {
+                        unimplemented!()
                     }
                 }
             },

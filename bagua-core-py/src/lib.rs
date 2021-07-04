@@ -215,6 +215,10 @@ impl BaguaTensorPy {
         self.inner.data_ptr()
     }
 
+    pub fn device_id(&self) -> usize {
+        self.inner.device_id()
+    }
+
     pub fn num_elements(&self) -> usize {
         self.inner.num_elements()
     }
@@ -290,6 +294,16 @@ impl BaguaCommBackendPy {
 
     pub fn wait_pending_post_backward_comm_ops(&self, py: Python) -> PyResult<usize> {
         py.allow_threads(|| self.inner.wait_pending_post_backward_comm_ops())
+            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
+    }
+    
+    pub fn execute_post_optimizer_step_comm_ops(&self, py: Python) -> PyResult<usize> {
+        py.allow_threads(|| self.inner.execute_post_optimizer_step_comm_ops())
+            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
+    }
+
+    pub fn wait_pending_post_optimizer_step_comm_ops(&self, py: Python) -> PyResult<usize> {
+        py.allow_threads(|| self.inner.wait_pending_post_optimizer_step_comm_ops())
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 }

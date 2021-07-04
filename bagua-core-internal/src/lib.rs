@@ -74,6 +74,10 @@ pub struct BaguaCommOpChannels {
     pub post_backward_channel_receiver: flume::Receiver<BaguaScheduledCommOp>,
     pub not_waited_post_backward_events_sender: flume::Sender<BaguaEventChannel>,
     pub not_waited_post_backward_events_receiver: flume::Receiver<BaguaEventChannel>,
+    pub post_optimizer_step_channel_sender: flume::Sender<BaguaScheduledCommOp>,
+    pub post_optimizer_step_channel_receiver: flume::Receiver<BaguaScheduledCommOp>,
+    pub not_waited_post_optimizer_step_events_sender: flume::Sender<BaguaEventChannel>,
+    pub not_waited_post_optimizer_step_events_receiver: flume::Receiver<BaguaEventChannel>,
 }
 
 impl BaguaCommOpChannels {
@@ -81,17 +85,23 @@ impl BaguaCommOpChannels {
         let (sender, receiver) = flume::bounded(cap);
         let (ev_sender, ev_receiver) = flume::unbounded();
         let (post_backward_channel_sender, post_backward_channel_receiver) = flume::bounded(cap);
-        let (post_backward_ev_sender, post_backwar_ev_receiver) = flume::unbounded();
+        let (post_backward_ev_sender, post_backward_ev_receiver) = flume::unbounded();
+        let (post_optimizer_step_channel_sender, post_optimizer_step_channel_receiver) = flume::bounded(cap);
+        let (post_optimizer_step_ev_sender, post_optimizer_step_ev_receiver) = flume::unbounded();
 
         Self {
             schedule_channel_sender: sender,
             schedule_channel_receiver: receiver,
             post_backward_channel_sender,
             post_backward_channel_receiver,
+            post_optimizer_step_channel_sender,
+            post_optimizer_step_channel_receiver,
+            not_waited_post_optimizer_step_events_sender: post_optimizer_step_ev_sender,
             not_waited_post_backward_events_sender: post_backward_ev_sender,
             not_waited_events_sender: ev_sender,
             not_waited_events_receiver: ev_receiver,
-            not_waited_post_backward_events_receiver: post_backwar_ev_receiver,
+            not_waited_post_backward_events_receiver: post_backward_ev_receiver,
+            not_waited_post_optimizer_step_events_receiver: post_optimizer_step_ev_receiver,
         }
     }
 }
@@ -346,6 +356,45 @@ impl BaguaCommBackend {
             let ev = self
                 .channels
                 .not_waited_post_backward_events_receiver
+                .try_recv();
+            match ev {
+                Ok(x) => {
+                    tracing::debug!("waiting for comm ops event {:?}", x);
+                    x.wait();
+                    tracing::debug!("comm ops event {:?} finished", x);
+                    num_ev += 1;
+                }
+                Err(_) => return Ok(num_ev),
+            }
+        }
+    }
+    
+    pub fn execute_post_optimizer_step_comm_ops(&self) -> Result<usize, BaguaCoreError> {
+        let mut num_ev = 0;
+        loop {
+            let comm_op = self.channels.post_optimizer_step_channel_receiver.try_recv();
+            match comm_op {
+                Ok(comm_op) => {
+                    tracing::debug!("received post optimizer step communication operation {:?}", comm_op);
+                    for op in &comm_op.ops {
+                        op.execute_background_communication(comm_op.bucket.clone(), &self.channels);
+                    }
+                    tracing::debug!("comm op executed: {:?}", comm_op);
+                    comm_op.event_channel.finish();
+                    tracing::debug!("comm op marked finished: {:?}", comm_op);
+                    num_ev += 1;
+                }
+                Err(_) => return Ok(num_ev),
+            }
+        }
+    }
+
+    pub fn wait_pending_post_optimizer_step_comm_ops(&self) -> Result<usize, BaguaCoreError> {
+        let mut num_ev = 0;
+        loop {
+            let ev = self
+                .channels
+                .not_waited_post_optimizer_step_events_receiver
                 .try_recv();
             match ev {
                 Ok(x) => {
