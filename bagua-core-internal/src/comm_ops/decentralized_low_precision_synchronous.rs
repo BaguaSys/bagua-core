@@ -14,6 +14,7 @@ pub struct DecentralizedLowPrecisionSynchronousPostStep {
     pub peer_selection_mode: PeerSelectionMode,
     pub compression_method: TensorCompressionMethod,
     pub step: usize,
+    pub weight_tensor: BaguaTensorRaw,
 }
 
 impl CommOpTrait for DecentralizedLowPrecisionSynchronousPostStep {
@@ -28,7 +29,6 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronousPostStep {
 
         let mut communication_tensor = bucket_guard.get_communication_tensor(stream_ptr, false, false);
 
-        let weight = bucket_guard.get_state_tensor("weight");
         let mut left_peer_weight = bucket_guard.get_state_tensor("left_peer_weight");
         let mut right_peer_weight = bucket_guard.get_state_tensor("right_peer_weight");
        
@@ -42,7 +42,7 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronousPostStep {
             false,
             &mut |c, t| {
                 tracing::debug!("start compress diff");
-                t.raw.substract_inplace(&weight, c.stream_ptr);
+                t.raw.substract_inplace(&self.weight_tensor, c.stream_ptr);
                 let compressed_tensor = t
                     .raw
                     .compress(&self.compression_method, 1, c.stream_ptr, -1)
@@ -130,8 +130,7 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronousPostStep {
                      compressed_tensor.as_ref(),
                      c.stream_ptr,
                 );
-
-                t.raw.add_inplace(&weight, c.stream_ptr);
+                t.raw.add_inplace(&self.weight_tensor, c.stream_ptr);
             },
         );
     }
@@ -168,7 +167,20 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
             },
         };
 
-        let mut weight = bucket_guard.get_state_tensor("weight");
+        let t = &communication_tensor;
+        let weight_tensor_buffer = CUDA_DEVICE_MEMORY_POOL[t.raw.device_id]
+            .try_pull(t.raw.num_elem_allocated * t.raw.dtype.bytes())
+            .expect("cannot allocate gpu memory");
+        let mut weight_tensor = BaguaTensorRaw {
+            ptr: weight_tensor_buffer.ptr,
+            num_elem_allocated: t.raw.num_elem_allocated,
+            dtype: t.raw.dtype,
+            num_elem: t.raw.num_elem,
+            device_id: t.raw.device_id,
+            pool_allocations: vec![Arc::new(weight_tensor_buffer)],
+        };
+        weight_tensor.clone_from(&t.raw, stream_ptr);
+
         let left_peer_weight = bucket_guard.get_state_tensor("left_peer_weight");
         let right_peer_weight = bucket_guard.get_state_tensor("right_peer_weight");
 
@@ -187,9 +199,6 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
                     t.raw.add_inplace(&left_peer_weight, c.stream_ptr);
                     t.raw.add_inplace(&right_peer_weight, c.stream_ptr);
                     t.raw.divide_inplace(c.stream_ptr, 3 as f32);
-
-                    weight.clone_from(&t.raw, c.stream_ptr);
-
                 }
             },
         );
@@ -203,6 +212,7 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
                     peer_selection_mode: self.peer_selection_mode.clone(),
                     compression_method: self.compression_method.clone(),
                     step,
+                    weight_tensor,
                 })],
                 event_channel: BaguaEventChannel::new("low_precision_decentralized_post_optimizer_step"),
             };
