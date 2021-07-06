@@ -386,6 +386,9 @@ impl BaguaBucketPy {
         peer_selection_mode: String,
         communication_interval: usize,
         compression: Option<String>,
+        weight: Option<PyRef<BaguaTensorPy>>,
+        left_peer_weight: Option<PyRef<BaguaTensorPy>>,
+        right_peer_weight: Option<PyRef<BaguaTensorPy>>
     ) -> PyResult<()> {
         self.inner.append_decentralized_synchronous_op(
             communicator_internode.map(|x| &x.inner),
@@ -394,6 +397,9 @@ impl BaguaBucketPy {
             peer_selection_mode,
             communication_interval,
             compression,
+            weight.map(|x| (*x).inner.clone()),
+            left_peer_weight.map(|x| (*x).inner.clone()),
+            right_peer_weight.map(|x| (*x).inner.clone()),
         );
         Ok(())
     }

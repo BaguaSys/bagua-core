@@ -211,6 +211,43 @@ pub trait RawBaguaTensor: Debug {
             }
         }
     }
+    fn addmul_inplace(&mut self, other: &dyn RawBaguaTensor, factor: f32, stream_ptr: u64) {
+        assert_eq!(self.dtype(), other.dtype());
+        assert_eq!(self.num_elements(), other.num_elements());
+        let tensor_ptr = self.data_ptr();
+        let total_num_elem = self.num_elements();
+        unsafe {
+            match self.dtype() {
+                BaguaTensorDtype::F32 => {
+                    kernels::addmul_inplace_f32_host(
+                        tensor_ptr as _,
+                        other.data_ptr() as _,
+                        total_num_elem as i32,
+                        factor as _,
+                        stream_ptr as _,
+                    );
+                }
+                BaguaTensorDtype::F16 => {
+                    kernels::addmul_inplace_f16_host(
+                        tensor_ptr as _,
+                        other.data_ptr() as _,
+                        total_num_elem as i32,
+                        factor as _,
+                        stream_ptr as _,
+                    );
+                }
+                BaguaTensorDtype::U8 => {
+                    unimplemented!()
+                }
+                BaguaTensorDtype::I64 => {
+                    unimplemented!()
+                }
+                BaguaTensorDtype::U64 => {
+                    unimplemented!()
+                }
+            }
+        }
+    }
 
     fn average_inplace(&mut self, other: &dyn RawBaguaTensor, stream_ptr: u64) {
         assert_eq!(self.dtype(), other.dtype());
@@ -1097,6 +1134,9 @@ impl BaguaBucket {
         peer_selection_mode: String,
         communication_interval: usize,
         compression: Option<String>,
+        weight: Option<BaguaTensor>,
+        left_peer_weight: Option<BaguaTensor>,
+        right_peer_weight: Option<BaguaTensor>
     ) {
         let communicator =
             BaguaCommunicator::new(communicator_internode, communicator_intranode, hierarchical)
@@ -1128,6 +1168,9 @@ impl BaguaBucket {
                      compression_method: TensorCompressionMethod::MinMaxUInt8(
                          MinMaxUInt8CompressionParameters {},
                      ),
+                    weight: weight.expect("cannot get weight"),
+                    left_peer_weight: left_peer_weight.expect("cannot get left_peer_weight"),
+                    right_peer_weight: right_peer_weight.expect("cannot get right_peer_weight"),
                 }),
                 _ => {
                     unimplemented!()
@@ -1135,7 +1178,6 @@ impl BaguaBucket {
 
             },
         };
-        tracing::debug!("append decentralized sync op ok...");
         self.inner.lock().comm_ops.push(comm_op);
     }
 

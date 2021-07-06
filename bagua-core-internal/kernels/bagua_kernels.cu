@@ -80,6 +80,16 @@ __device__ inline half __hadd_with_fallback(const half a, const half b) {
 #endif
 }
 
+__device__ inline half __haddmul_with_fallback(const half a, const half b, const half factor) {
+#if __CUDA_ARCH__ >= 530
+    return __hadd(a, __hmul(b, factor));
+#else
+    float out;
+    out = __half2float(a) + __half2float(b) * __half2float(factor);
+    return __float2half_rn(out);
+#endif
+}
+
 // Reference: https://github.com/dmlc/cub/blob/master/cub/thread/thread_operators.cuh
 struct Sum {
     /// Boolean sum operator, returns <tt>a + b</tt>
@@ -216,6 +226,18 @@ __global__ void add_inplace_f32(float *x, float *y, int N) {
 __global__ void add_inplace_f16(__half *x, __half *y, int N) {
     for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N; i += blockDim.x * gridDim.x) {
         x[i] = __hadd_with_fallback(x[i], y[i]);
+    }
+}
+
+__global__ void addmul_inplace_f32(float *x, float *y, int N, float factor) {
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N; i += blockDim.x * gridDim.x) {
+        x[i] += y[i] * factor;
+    }
+}
+
+__global__ void addmul_inplace_f16(__half *x, __half *y, int N, __half factor) {
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N; i += blockDim.x * gridDim.x) {
+        x[i] = __haddmul_with_fallback(x[i], y[i], factor);
     }
 }
 
@@ -556,6 +578,16 @@ void add_inplace_f32_host(float *x, float *y, int N, cudaStream_t stream) {
 
 void add_inplace_f16_host(__half *x, __half *y, int N, cudaStream_t stream) {
     add_inplace_f16<<<DIVUP(N, 1024), 1024, 0, stream>>>(x, y, N);
+    CUDACHECK(cudaGetLastError());
+}
+
+void addmul_inplace_f32_host(float *x, float *y, int N, const float factor, cudaStream_t stream) {
+    addmul_inplace_f32<<<DIVUP(N, 1024), 1024, 0, stream>>>(x, y, N, factor);
+    CUDACHECK(cudaGetLastError());
+}
+
+void addmul_inplace_f16_host(__half *x, __half *y, int N, const float factor, cudaStream_t stream) {
+    addmul_inplace_f16<<<DIVUP(N, 1024), 1024, 0, stream>>>(x, y, N, __float2half(factor));
     CUDACHECK(cudaGetLastError());
 }
 
