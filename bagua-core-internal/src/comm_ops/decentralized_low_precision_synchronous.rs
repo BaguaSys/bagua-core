@@ -30,20 +30,7 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
         let bucket_guard = bucket.inner.lock();
         let stream_ptr = self.communicator.stream_ptr();
 
-        let mut communication_tensor = match &self.communicator {
-            BaguaCommunicator::SingleCommunicator(_) => {
-                bucket_guard.get_communication_tensor(stream_ptr, false, false)
-            }
-            BaguaCommunicator::HierarchicalCommunicator(x) => match x {
-                BaguaHierarchicalCommunicator::Leader(_) => {
-                    bucket_guard.get_communication_tensor(stream_ptr, true, true)
-                }
-                BaguaHierarchicalCommunicator::Worker(_) => {
-                    bucket_guard.get_communication_tensor(stream_ptr, false, false)
-                }
-            },
-        };
-
+        let mut communication_tensor = bucket_guard.get_communication_tensor(stream_ptr, false, false);
         let mut weight = BaguaTensorRaw {
             ptr: self.weight.data_ptr(),
             num_elem: self.weight.num_elements(),
@@ -77,7 +64,7 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
             &mut communication_tensor,
             true,
             true,
-            false,
+            true,
             &mut |c, t| {
                 if step % comm_interval == 0 {
                     tracing::debug!("start compress diff");
