@@ -896,7 +896,6 @@ pub struct BaguaBucketInner {
     pub tensors: Vec<BaguaTensor>,
     pub dtype: BaguaTensorDtype,
     pub comm_ops: Vec<Arc<dyn CommOpTrait + Sync + Send>>,
-    pub states: HashMap<String, BaguaTensor>,
 }
 
 pub struct BaguaCommunicationTensor<'b> {
@@ -941,19 +940,6 @@ impl BaguaBucketInner {
         self.total_num_elements_allocated() * self.dtype.bytes()
     }
     
-    pub fn get_state_tensor(&self, name: &str) -> BaguaTensorRaw {
-        let tensor = self.states.get(name).expect("state not found");
-
-        BaguaTensorRaw {
-            ptr: tensor.data_ptr(),
-            num_elem: tensor.num_elements(),
-            dtype: tensor.inner.read().raw.dtype(),
-            num_elem_allocated: tensor.num_elements_allocated(),
-            device_id: tensor.device_id(),
-            pool_allocations: vec![],
-        }
-    }
-
     /// NOTE: this does not wait for memcpy finished
     // TODO: simplify args
     pub fn get_communication_tensor(
@@ -1109,21 +1095,12 @@ impl BaguaBucket {
                 tensors: tensors.iter().map(|x| (**x).clone()).collect(),
                 comm_ops: vec![],
                 dtype: tensors.first().unwrap().inner.read().raw.dtype().clone(),
-                states: Default::default(),
             })),
         })
     }
 
     pub fn tensors(&self) -> Vec<BaguaTensor> {
         self.inner.lock().tensors.clone()
-    }
-
-    pub fn states(&self) -> HashMap<String, BaguaTensor> {
-        self.inner.lock().states.clone()
-    }
-
-    pub fn set_state(&mut self, name: String, tensor: BaguaTensor) {
-        self.inner.lock().states.insert(name, tensor);
     }
 
     pub fn append_decentralized_synchronous_op(
@@ -1160,7 +1137,7 @@ impl BaguaBucket {
                      peer_selection_mode: match peer_selection_mode.as_str() {
                          "ring" => PeerSelectionMode::Ring,
                          &_ => {
-                             unimplemented!("unsupported peer_selection_mode for decentralized algorithm (should be `ring`)")
+                             unimplemented!("unsupported peer_selection_mode for low precision decentralized algorithm (should be `ring`)")
                          }
                      },
                      step: Default::default(),
@@ -1168,9 +1145,9 @@ impl BaguaBucket {
                      compression_method: TensorCompressionMethod::MinMaxUInt8(
                          MinMaxUInt8CompressionParameters {},
                      ),
-                    weight: weight.expect("cannot get weight"),
-                    left_peer_weight: left_peer_weight.expect("cannot get left_peer_weight"),
-                    right_peer_weight: right_peer_weight.expect("cannot get right_peer_weight"),
+                    weight: weight.expect("missing parameter `weight` for low precision decentralized algorithm"), 
+                    left_peer_weight: left_peer_weight.expect("missing parameter `left_peer_weight` for low precision decentralized algorithm"),
+                    right_peer_weight: right_peer_weight.expect("missing parameter `right_peer_weight` for low precision decentralized algorithm"),
                 }),
                 _ => {
                     unimplemented!()

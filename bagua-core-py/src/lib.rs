@@ -297,15 +297,6 @@ impl BaguaCommBackendPy {
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
     
-    pub fn execute_post_optimizer_step_comm_ops(&self, py: Python) -> PyResult<usize> {
-        py.allow_threads(|| self.inner.execute_post_optimizer_step_comm_ops())
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
-    }
-
-    pub fn wait_pending_post_optimizer_step_comm_ops(&self, py: Python) -> PyResult<usize> {
-        py.allow_threads(|| self.inner.wait_pending_post_optimizer_step_comm_ops())
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
-    }
 }
 
 #[pyclass(dict)]
@@ -333,19 +324,6 @@ impl BaguaBucketPy {
             .into_iter()
             .map(|x| BaguaTensorPy { inner: x })
             .collect()
-    }
-
-    pub fn states(&self) -> HashMap<String, BaguaTensorPy> {
-        self.inner
-            .states()
-            .iter()
-            .map(|(k, v)| (k.clone(), BaguaTensorPy {inner: v.clone()}))
-            .collect()
-    }
-
-    pub fn set_state(&mut self, name: String, tensor: PyRef<BaguaTensorPy>) -> PyResult<()>{
-        self.inner.set_state(name, (*tensor).inner.clone());   
-        Ok(())
     }
 
     pub fn append_python_op(&mut self, op: &PyAny) -> PyResult<()> {
