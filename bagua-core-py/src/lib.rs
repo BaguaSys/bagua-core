@@ -6,7 +6,6 @@ use bagua_core_internal::datatypes::{
 };
 use bagua_core_internal::BaguaCommBackend;
 use num_traits::FromPrimitive;
-use std::collections::HashMap;
 use numpy::{IntoPyArray, PyArray1};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;

@@ -17,7 +17,6 @@ use num_traits::FromPrimitive;
 use parking_lot::{Mutex, RwLock};
 use pyo3::types::IntoPyDict;
 use sized_object_pool::DynamicPoolItem;
-use std::collections::HashMap;
 use std::ffi::c_void;
 use std::fmt::Debug;
 use std::sync::Arc;
