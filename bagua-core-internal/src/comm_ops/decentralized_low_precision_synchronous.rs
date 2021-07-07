@@ -31,30 +31,6 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
         let stream_ptr = self.communicator.stream_ptr();
 
         let mut communication_tensor = bucket_guard.get_communication_tensor(stream_ptr, false, false);
-        let mut weight = BaguaTensorRaw {
-            ptr: self.weight.data_ptr(),
-            num_elem: self.weight.num_elements(),
-            dtype: self.weight.inner.read().raw.dtype(),
-            num_elem_allocated: self.weight.num_elements_allocated(),
-            device_id: self.weight.device_id(),
-            pool_allocations: vec![],
-        };
-        let mut left_peer_weight = BaguaTensorRaw {
-            ptr: self.left_peer_weight.data_ptr(),
-            num_elem: self.left_peer_weight.num_elements(),
-            dtype: self.left_peer_weight.inner.read().raw.dtype(),
-            num_elem_allocated: self.left_peer_weight.num_elements_allocated(),
-            device_id: self.left_peer_weight.device_id(),
-            pool_allocations: vec![],
-        };
-        let mut right_peer_weight = BaguaTensorRaw {
-            ptr: self.right_peer_weight.data_ptr(),
-            num_elem: self.right_peer_weight.num_elements(),
-            dtype: self.right_peer_weight.inner.read().raw.dtype(),
-            num_elem_allocated: self.right_peer_weight.num_elements_allocated(),
-            device_id: self.right_peer_weight.device_id(),
-            pool_allocations: vec![],
-        };
 
         let peer_mode = &self.peer_selection_mode;
         let comm_interval = &self.communication_interval;
@@ -69,11 +45,14 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
                 if step % comm_interval == 0 {
                     tracing::debug!("start compress diff");
 
-                    t.raw.addmul_inplace(&left_peer_weight, 1.0 / 3.0, c.stream_ptr);
-                    t.raw.addmul_inplace(&right_peer_weight, 1.0 / 3.0, c.stream_ptr);
-                    t.raw.addmul_inplace(&weight, -2.0 / 3.0, c.stream_ptr);
+                    t.raw.addmul_inplace(self.left_peer_weight.inner.read().raw.as_ref(), 1.0 / 3.0, c.stream_ptr);
+                    t.raw.addmul_inplace(self.right_peer_weight.inner.read().raw.as_ref(), 1.0 / 3.0, c.stream_ptr);
 
-                    t.raw.substract_inplace(&weight, c.stream_ptr);
+                    {
+                        let weight_guard = self.weight.inner.read();
+                        t.raw.addmul_inplace(weight_guard.raw.as_ref(), -2.0 / 3.0, c.stream_ptr);
+                        t.raw.substract_inplace(weight_guard.raw.as_ref(), c.stream_ptr);
+                    }
                     let compressed_tensor = t
                         .raw
                         .compress(&self.compression_method, 1, c.stream_ptr, -1)
@@ -145,7 +124,10 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
                         &lrecv_tensor,
                         c.stream_ptr,
                     );
-                    left_peer_weight.add_inplace(&t.raw, c.stream_ptr);
+                    {
+                        let mut weight_guard = self.left_peer_weight.inner.write();
+                        weight_guard.raw.add_inplace(&t.raw, c.stream_ptr);
+                    }
 
                     t.raw.decompress_from(
                         &self.compression_method,
@@ -153,7 +135,10 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
                         &rrecv_tensor,
                         c.stream_ptr,
                     );
-                    right_peer_weight.add_inplace(&t.raw, c.stream_ptr);
+                    {
+                        let mut weight_guard = self.right_peer_weight.inner.write();
+                        weight_guard.raw.add_inplace(&t.raw, c.stream_ptr);
+                    }
 
                     t.raw.decompress_from(
                          &self.compression_method,
@@ -161,9 +146,12 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
                          compressed_tensor.as_ref(),
                          c.stream_ptr,
                     );
-                    t.raw.add_inplace(&weight, c.stream_ptr);
 
-                    weight.clone_from(&t.raw, c.stream_ptr);
+                    {
+                        let mut weight_guard = self.weight.inner.write();
+                        t.raw.add_inplace(weight_guard.raw.as_ref(), c.stream_ptr);
+                        weight_guard.raw.clone_from(&t.raw, c.stream_ptr);
+                    }
                 }
             },
         );
