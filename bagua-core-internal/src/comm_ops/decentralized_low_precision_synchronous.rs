@@ -50,8 +50,7 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
 
                     {
                         let weight_guard = self.weight.inner.read();
-                        t.raw.addmul_inplace(weight_guard.raw.as_ref(), -2.0 / 3.0, c.stream_ptr);
-                        t.raw.substract_inplace(weight_guard.raw.as_ref(), c.stream_ptr);
+                        t.raw.addmul_inplace(weight_guard.raw.as_ref(), -5.0 / 3.0, c.stream_ptr);
                     }
                     let compressed_tensor = t
                         .raw
