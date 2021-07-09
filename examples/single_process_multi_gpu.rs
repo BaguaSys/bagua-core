@@ -56,7 +56,7 @@ fn init_process_group(gpu_setting: Vec<i32>, nranks: usize, master_addr: String,
     for gpu_id in gpu_setting {
         let nranks_clone = nranks.clone();
         let nccl_unique_id_clone = nccl_unique_id.clone();
-        let mut t = std::thread::spawn(|| BaguaSingleCommunicator::new(
+        let mut t = std::thread::spawn(move || BaguaSingleCommunicator::new(
             gpu_id as usize,
             nranks_clone,
             gpu_id as usize,
