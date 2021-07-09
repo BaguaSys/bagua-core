@@ -32,7 +32,7 @@ fn init_process_group(gpu_setting: Vec<i32>, nranks: usize, master_addr: String,
 
     let nccl_unique_id = if gpu_setting.iter().any(|&i| i == 0) {
         let nccl_unique_id = BaguaSingleCommunicator::generate_nccl_unique_id_str().as_bytes();
-        kv.set("nccl_unique_id".into(), nccl_unique_id).unwrap();
+        kv.set("nccl_unique_id".into(), nccl_unique_id.clone()).unwrap();
 
         nccl_unique_id.to_vec()
     } else {
@@ -52,9 +52,9 @@ fn init_process_group(gpu_setting: Vec<i32>, nranks: usize, master_addr: String,
         nccl_unique_id
     };
 
-    let comm_init_threads = Vec::new();
+    let mut comm_init_threads = Vec::new();
     for gpu_id in gpu_setting {
-        let t = std::thread::spawn(move || {
+        let mut t = std::thread::spawn(move || {
             BaguaSingleCommunicator::new(
                 gpu_id as usize,
                 nranks,
@@ -66,7 +66,7 @@ fn init_process_group(gpu_setting: Vec<i32>, nranks: usize, master_addr: String,
         comm_init_threads.push(t);
     }
 
-    let comm_list = Vec::new();
+    let mut comm_list = Vec::new();
     for t in comm_init_threads {
         comm_list.push(t.join().unwrap());
     }
