@@ -60,15 +60,15 @@ fn init_process_group(gpu_setting: Vec<i32>, nranks: usize, master_addr: String,
                 nranks,
                 device_id,
                 stream_ptr,
-                std::str::from_utf8(nccl_unique_id).unwrap(),
-            ).unwrap()
+                std::str::from_utf8(&nccl_unique_id).unwrap(),
+            )
         });
         comm_init_threads.push(t);
     }
 
     let comm_list = Vec::new();
     for t in comm_init_threads {
-        comm_list.push(t.join());
+        comm_list.push(t.join().unwrap());
     }
 
     for communicator in comm_list {
