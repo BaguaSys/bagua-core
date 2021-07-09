@@ -47,7 +47,6 @@ fn init_process_group(gpu_setting: Vec<i32>, nranks: usize, master_addr: String,
             }
         };
         println!("nccl_unique_id={:?}", nccl_unique_id);
-        assert_eq!(nccl_unique_id, "123".as_bytes());
 
         nccl_unique_id
     };
