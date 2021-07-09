@@ -31,10 +31,10 @@ fn init_process_group(gpu_setting: Vec<i32>, nranks: usize, master_addr: String,
     };
 
     let nccl_unique_id = if gpu_setting.iter().any(|&i| i == 0) {
-        let nccl_unique_id = BaguaSingleCommunicator::generate_nccl_unique_id_str().as_bytes();
-        kv.set("nccl_unique_id".into(), nccl_unique_id.clone()).unwrap();
+        let nccl_unique_id = BaguaSingleCommunicator::generate_nccl_unique_id_str();
+        kv.set("nccl_unique_id".into(), nccl_unique_id.clone().as_bytes()).unwrap();
 
-        nccl_unique_id.to_vec()
+        nccl_unique_id
     } else {
         let nccl_unique_id = loop {
             let nccl_unique_id = kv.get("nccl_unique_id".into());
@@ -60,7 +60,7 @@ fn init_process_group(gpu_setting: Vec<i32>, nranks: usize, master_addr: String,
                 nranks,
                 gpu_id as usize,
                 0,
-                std::str::from_utf8(&nccl_unique_id).unwrap(),
+                std::str::from_utf8(&nccl_unique_id.clone()).unwrap(),
             )
         });
         comm_init_threads.push(t);
