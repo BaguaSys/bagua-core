@@ -18,7 +18,7 @@ use std::{
 use tokio::runtime::{Builder, Runtime};
 use tonic::{Request, Response, Status};
 
-fn init_process_group(gpu_setting: Vec<i32>, nranks: i32, master_addr: String, master_port: i32) {
+fn init_process_group(gpu_setting: Vec<i32>, nranks: usize, master_addr: String, master_port: i32) {
     let mut kv = loop {
         let kv = BaguaKvStore::open(format!("http://{}:{}", master_addr, master_port));
         match kv {
@@ -34,7 +34,7 @@ fn init_process_group(gpu_setting: Vec<i32>, nranks: i32, master_addr: String, m
         let nccl_unique_id = BaguaSingleCommunicator::generate_nccl_unique_id_str().as_bytes();
         kv.set("nccl_unique_id".into(), nccl_unique_id).unwrap();
 
-        nccl_unique_id
+        nccl_unique_id.to_vec()
     } else {
         let nccl_unique_id = loop {
             let nccl_unique_id = kv.get("nccl_unique_id".into());
@@ -61,7 +61,7 @@ fn init_process_group(gpu_setting: Vec<i32>, nranks: i32, master_addr: String, m
                 device_id,
                 stream_ptr,
                 std::str::from_utf8(nccl_unique_id).unwrap(),
-            )
+            ).unwrap()
         });
         comm_init_threads.push(t);
     }
