@@ -56,10 +56,10 @@ fn init_process_group(gpu_setting: Vec<i32>, nranks: usize, master_addr: String,
     for gpu_id in gpu_setting {
         let t = std::thread::spawn(move || {
             BaguaSingleCommunicator::new(
-                rank,
+                gpu_id as usize,
                 nranks,
-                device_id,
-                stream_ptr,
+                gpu_id as usize,
+                0,
                 std::str::from_utf8(&nccl_unique_id).unwrap(),
             )
         });
