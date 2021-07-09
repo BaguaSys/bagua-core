@@ -1,0 +1,20 @@
+[package]
+name = "examples"
+version = "0.0.0"
+publish = false
+edition = "2018"
+
+# If you copy one of the examples into a new project, you should be using
+# [dependencies] instead.
+[dev-dependencies]
+bagua-core-internal = { path = "../bagua-core-internal" }
+bagua-store = { path = "../bagua-store" }
+nix = { version = "0.8" }
+parking_lot = { version = "0.11", features = ["deadlock_detection"] }
+tonic = "0.4"
+prost = "0.7"
+tokio = { version = "1.8.0", features = ["full"] }
+
+[[example]]
+name = "single_process_multi_gpu"
+path = "single_process_multi_gpu.rs"
