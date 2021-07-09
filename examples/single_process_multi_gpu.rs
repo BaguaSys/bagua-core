@@ -54,12 +54,14 @@ fn init_process_group(gpu_setting: Vec<i32>, nranks: usize, master_addr: String,
 
     let mut comm_init_threads = Vec::new();
     for gpu_id in gpu_setting {
+        let nranks_clone = nranks.clone();
+        let nccl_unique_id_clone = nccl_unique_id.clone();
         let mut t = std::thread::spawn(|| BaguaSingleCommunicator::new(
             gpu_id as usize,
-            nranks,
+            nranks_clone,
             gpu_id as usize,
             0,
-            std::str::from_utf8(&nccl_unique_id.clone()).unwrap(),
+            std::str::from_utf8(&nccl_unique_id_clone).unwrap(),
         ));
         comm_init_threads.push(t);
     }
