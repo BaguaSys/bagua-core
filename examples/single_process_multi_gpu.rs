@@ -34,7 +34,7 @@ fn init_process_group(gpu_setting: Vec<i32>, nranks: usize, master_addr: String,
         let nccl_unique_id = BaguaSingleCommunicator::generate_nccl_unique_id_str();
         kv.set("nccl_unique_id".into(), nccl_unique_id.clone().as_bytes()).unwrap();
 
-        nccl_unique_id.as_bytes()
+        nccl_unique_id.as_bytes().to_vec()
     } else {
         let nccl_unique_id = loop {
             let nccl_unique_id = kv.get("nccl_unique_id".into());
