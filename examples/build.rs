@@ -29,7 +29,7 @@ fn main() {
     cpp_builder.include(format!("{}/include", cuda_home));
     cpp_builder.include("cpp/include");
     cpp_builder.include("../../bagua/.data/include");
-    cpp_builder.build("src/lib.rs");
+    cpp_builder.build("single_process_multi_gpu.rs");
 
     println!(
         "cargo:rustc-link-search=native={}",
