@@ -220,7 +220,7 @@ fn main() {
                 //     master_addr.clone().into(),
                 //     123,
                 //     tensors.as_slice(),
-                );
+                // );
                 thread::sleep(time::Duration::from_secs(5));
                 exit(0);
             }
