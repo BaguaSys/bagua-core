@@ -86,25 +86,70 @@ fn init_process_group(
     comm_list
 }
 
-// pub struct BaguaBackendForKai {
-//     inner: BaguaCommBackend,
-//     communicator: BaguaSingleCommunicator,
-// }
+pub struct BaguaBackendForKai {
+    kv_store_server: Option<(std::thread::JoinHandle<()>, tokio::sync::oneshot::Receiver<())>,
+    ranks: Vec<usize>,
+    nranks: usize,
+    gpu_setting: Vec<usize>,
+    bagua_backends: Vec<BaguaCommBackend>,
+    communicators: Vec<BaguaSingleCommunicator>,
+}
 
-// impl BaguaBackendForKai {
-//     pub fn new(
-//         gpu_setting: Vec<i32>,
-//         ranks: Vec<i32>,
-//         nranks: usize,
-//         master_addr: String,
-//         master_port: i32,
-//         autotune_service_addr: String,
-//         autotune_service_port: i32,
-//         tensors: &[&BaguaTensor],
-//     ) -> BaguaBackendForKai {
+impl BaguaBackendForKai {
+    const BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP: usize = 100;
 
-//     }
-// }
+    pub fn new(
+        ranks: Vec<usize>,
+        nranks: usize,
+        gpu_setting: Vec<usize>,
+        master_addr: String,
+        master_port: i32,
+        autotune_service_addr: String,
+        autotune_service_port: i32,
+        tensors: &[&BaguaTensor],
+    ) -> BaguaBackendForKai {
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        let kv_store = if gpu_setting.iter().any(|&i| i == 0) {
+            Some((std::thread::spawn(move || {
+                let rt = Runtime::new().unwrap();
+                let kv_store = KvStoreService::new();
+                let service_addr = format!("{}:{}", master_addr, master_port);
+                println!(
+                    "{} listen on service_addr={:?}",
+                    std::process::id(),
+                    service_addr
+                );
+                let service_fut = tonic::transport::Server::builder()
+                    .add_service(BaguaKvStoreServer::new(kv_store))
+                    .serve_with_shutdown(service_addr.parse().unwrap(), async {
+                        rx.await.ok();
+                    });
+                rt.block_on(service_fut)
+                    .expect("failed to successfully run the future on RunTime");
+            }), tx))
+        } else {
+            None
+        };
+
+        Self {
+            kv_store_server: kv_store,
+            ranks: ranks,
+            nranks: nranks,
+            gpu_setting: gpu_setting.clone(),
+            bagua_backends: gpu_setting.clone().iter().map(|&device_id| BaguaCommBackend::new(BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP, device_id)).collect(),
+            communicators: init_process_group(gpu_setting, nranks, master_addr, master_port),
+        }
+    }
+}
+
+impl Drop for BaguaBackendForKai {
+    fn drop(&mut self) {
+        if Some((server_thread, tx)) = self.kv_store_server {
+            tx.send(()).unwrap();
+            server_thread.join();
+        }
+    }
+}
 
 fn main() {
     let nranks = 8;
@@ -125,74 +170,17 @@ fn main() {
             }
             ForkResult::Child => {
                 println!("gpu_setting={:?}", gpu_setting);
-                // let (sender, receiver) = std::sync::mpsc::channel();
-                let (tx, rx) = tokio::sync::oneshot::channel::<()>();
-                let kv_store = if gpu_setting.iter().any(|&i| i == 0) {
-                    Some(std::thread::spawn(move || {
-                        // match sender.send(std::net::TcpStream::connect(("127.0.0.1", 12333))) {
-                        //     Ok(()) => {
-                        //         let rt = Runtime::new().unwrap();
-                        //         let kv_store = KvStoreService::new();
-                        //         let service_addr = format!("{}:{}", master_addr, master_port);
-                        //         println!("{} listen on service_addr={:?}", std::process::id(), service_addr);
-                        //         let service_fut = tonic::transport::Server::builder()
-                        //             .add_service(BaguaKvStoreServer::new(kv_store))
-                        //             .serve(service_addr.parse().unwrap());
-                        //         rt.block_on(service_fut)
-                        //             .expect("failed to successfully run the future on RunTime");
-                        //     }, // everything good
-                        //     Err(_) => {}, // we have been released, don't panic
-                        // }
-                        let rt = Runtime::new().unwrap();
-                        let kv_store = KvStoreService::new();
-                        let service_addr = format!("{}:{}", master_addr, master_port);
-                        println!(
-                            "{} listen on service_addr={:?}",
-                            std::process::id(),
-                            service_addr
-                        );
-                        let service_fut = tonic::transport::Server::builder()
-                            .add_service(BaguaKvStoreServer::new(kv_store))
-                            .serve_with_shutdown(service_addr.parse().unwrap(), async {
-                                rx.await.ok();
-                            });
-                        rt.block_on(service_fut)
-                            .expect("failed to successfully run the future on RunTime");
-                    }))
-                } else {
-                    None
-                };
-
-                // let (sender, receiver) = mpsc::channel();
-                // let t = thread::spawn(move || {
-                //     match sender.send(std::net::TcpStream::connect(("127.0.0.1", 12333))) {
-                //         Ok(()) => {
-                //             let rt = Runtime::new().unwrap();
-                //             let kv_store = KvStoreService::new();
-                //             let service_addr = format!("{}:{}", master_addr, master_port);
-                //             println!("{} listen on service_addr={:?}", std::process::id(), service_addr);
-                //             let service_fut = tonic::transport::Server::builder()
-                //                 .add_service(BaguaKvStoreServer::new(kv_store))
-                //                 .serve(service_addr.parse().unwrap());
-                //             rt.block_on(service_fut)
-                //                 .expect("failed to successfully run the future on RunTime");
-                //         }, // everything good
-                //         Err(_) => {}, // we have been released, don't panic
-                //     }
-                // });
-                // return receiver.recv_timeout(Duration::from_millis(5000));
-
-                let comm_list =
-                    init_process_group(gpu_setting, nranks, master_addr.into(), master_port);
-
-                // bagua_backend list
-                // register_ordered_buckets
-
-                if let Some(server_thread) = kv_store {
-                    thread::sleep(time::Duration::from_secs(5));
-                    tx.send(()).unwrap();
-                    server_thread.join();
-                }
+                let backend4kai = BaguaBackendForKai::new(
+                    gpu_setting.clone(),
+                    nranks,
+                    gpu_setting.clone(),
+                    master_addr.clone(),
+                    master_port,
+                    master_addr,
+                    123,
+                    vec![],
+                );
+                thread::sleep(time::Duration::from_secs(5));
                 exit(0);
             }
         }
