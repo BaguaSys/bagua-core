@@ -3,6 +3,7 @@ name = "examples"
 version = "0.0.0"
 publish = false
 edition = "2018"
+build = "build.rs"
 
 # If you copy one of the examples into a new project, you should be using
 # [dependencies] instead.
@@ -14,6 +15,13 @@ parking_lot = { version = "0.11", features = ["deadlock_detection"] }
 tonic = "0.4"
 prost = "0.7"
 tokio = { version = "1.8.0", features = ["full"] }
+
+[build-dependencies]
+shadow-rs = "0.5"
+cpp_build = "0.5"
+cc = "1.0"
+cmd_lib = "1.0"
+which = "4.1"
 
 [[example]]
 name = "single_process_multi_gpu"

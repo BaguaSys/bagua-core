@@ -473,11 +473,16 @@ version = "0.0.0"
 dependencies = [
  "bagua-core-internal",
  "bagua-store",
+ "cc",
+ "cmd_lib",
+ "cpp_build",
  "nix",
  "parking_lot",
  "prost",
+ "shadow-rs",
  "tokio",
  "tonic",
+ "which",
 ]
 
 [[package]]

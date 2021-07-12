@@ -3,14 +3,24 @@ use bagua_core_internal::datatypes::{BaguaBucket, BaguaTensor};
 use bagua_core_internal::telemetry::{
     BaguaCommCoreTelemetry, RegisterModelsRequest, TensorDeclaration,
 };
+use bagua_core_internal::resource_pool::CudaMemory;
 use bagua_core_internal::BaguaCommBackend;
 use bagua_store::{BaguaKvStore, BaguaKvStoreServer, KvStoreService};
+use cpp::cpp;
 use nix::{
     sys::wait::waitpid,
     unistd::{fork, ForkResult},
 };
 use std::{process::exit, thread, time};
 use tokio::runtime::Runtime;
+
+cpp! {{
+#include <nccl.h>
+#include <stdio.h>
+#include <iostream>
+
+#define CUDACHECK(cmd) do { cudaError_t e = cmd; if( e != cudaSuccess ) { printf("Failed: Cuda error %s:%d '%s'\n", __FILE__,__LINE__,cudaGetErrorString(e)); exit(EXIT_FAILURE); } } while(0)
+}}
 
 fn init_process_group(
     ranks: Vec<usize>,
@@ -153,11 +163,10 @@ impl BaguaBackendForKai {
 
 impl Drop for BaguaBackendForKai {
     fn drop(&mut self) {
-        let _ = self.kv_store;
-        // if let Some((server_thread, tx)) = self.kv_store {
-        //     tx.send(()).unwrap();
-        //     server_thread.join();
-        // }
+        if let Some((server_thread, tx)) = self.kv_store {
+            tx.send(()).unwrap();
+            server_thread.join();
+        }
     }
 }
 
@@ -181,15 +190,37 @@ fn main() {
             }
             ForkResult::Child => {
                 println!("gpu_setting={:?}", gpu_setting);
+                let bagua_tensors = Vec::new();
+                for device_id in &gpu_setting {
+                    let ptr = unsafe {
+                        cpp::cpp!([device_id as "size_t"] -> u64 as "void*"
+                        {
+                            size_t bytes = 4;
+                            CUDACHECK(cudaSetDevice(device_id));
+                            void* ptr = 0;
+                            CUDACHECK(cudaMalloc(&ptr, bytes));
+                            float x = device_id;
+                            CUDACHECK(cudaMemcpy((void*)&x, ptr, 4, cudaMemcpyHostToDevice));
+                        })
+                    };
+                    bagua_tensors.push(BaguaTensor::new(
+                        ptr,
+                        1,
+                        1,
+                        "f32",
+                        device_id,
+                    ));
+                }
+
                 let backend4kai = BaguaBackendForKai::new(
                     gpu_setting.clone(),
                     nranks,
                     gpu_setting.clone(),
                     master_addr.clone().into(),
                     master_port,
-                    master_addr.clone().into(),
+                    autotune_service_addr = master_addr.clone().into(),
                     123,
-                    &[] as &[&BaguaTensor],
+                    bagua_tensors.into(),
                 );
                 thread::sleep(time::Duration::from_secs(5));
                 exit(0);
@@ -200,11 +231,4 @@ fn main() {
     for child_id in child_id_list {
         waitpid(child_id, None).unwrap();
     }
-
-    // // 1, 2, 5
-    // if let Ok(Fork::Child) = daemon(false, false) {
-    //     println!("aabb");
-    // }
-
-    println!("ccdd");
 }
