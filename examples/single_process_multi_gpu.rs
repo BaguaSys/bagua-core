@@ -20,8 +20,9 @@ use tokio::runtime::{Builder, Runtime};
 use tonic::{Request, Response, Status};
 
 fn init_process_group(
-    gpu_setting: Vec<i32>,
+    ranks: Vec<usize>,
     nranks: usize,
+    gpu_setting: Vec<usize>,
     master_addr: String,
     master_port: i32,
 ) -> Vec<BaguaSingleCommunicator> {
@@ -36,7 +37,7 @@ fn init_process_group(
         }
     };
 
-    let nccl_unique_id = if gpu_setting.iter().any(|&i| i == 0) {
+    let nccl_unique_id = if ranks.iter().any(|&i| i == 0) {
         let nccl_unique_id = BaguaSingleCommunicator::generate_nccl_unique_id_str();
         kv.set("nccl_unique_id".into(), nccl_unique_id.clone().as_bytes())
             .unwrap();
@@ -87,7 +88,7 @@ fn init_process_group(
 }
 
 pub struct BaguaBackendForKai {
-    pub kv_store_server: Option<(std::thread::JoinHandle<()>, tokio::sync::oneshot::Receiver<())>,
+    pub kv_store: Option<(std::thread::JoinHandle<()>, tokio::sync::oneshot::Receiver<())>,
     pub ranks: Vec<usize>,
     pub nranks: usize,
     pub gpu_setting: Vec<usize>,
@@ -132,19 +133,21 @@ impl BaguaBackendForKai {
         };
 
         Self {
-            kv_store_server: kv_store,
+            kv_store: kv_store,
             ranks: ranks,
             nranks: nranks,
             gpu_setting: gpu_setting.clone(),
-            bagua_backends: gpu_setting.clone().iter().map(|&device_id| BaguaCommBackend::new(BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP, device_id)).collect(),
-            communicators: init_process_group(gpu_setting, nranks, master_addr, master_port),
+            bagua_backends: gpu_setting.clone().iter()
+                .map(|&device_id| BaguaCommBackend::new(BaguaBackendForKai::BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP, device_id))
+                .collect(),
+            communicators: init_process_group(ranks, nranks, gpu_setting, master_addr, master_port),
         }
     }
 }
 
 impl Drop for BaguaBackendForKai {
     fn drop(&mut self) {
-        if let Some((server_thread, tx)) = self.kv_store_server {
+        if let Some((server_thread, tx)) = self.kv_store {
             tx.send(()).unwrap();
             server_thread.join();
         }
@@ -159,7 +162,7 @@ fn main() {
     let mut child_id_list = Vec::new();
     let processes_gpu_setting = vec![vec![0], vec![1, 2], vec![3, 4, 5, 6, 7]];
     for gpu_setting in processes_gpu_setting {
-        let gpu_setting = gpu_setting.map(|&x| x as usize);
+        let gpu_setting = gpu_setting.iter().map(|&x| x as usize);
         match fork().expect("Failed to fork process") {
             ForkResult::Parent { child } => {
                 // println!("Try to kill me to check if the target process will be killed");
