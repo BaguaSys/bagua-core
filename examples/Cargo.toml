@@ -7,7 +7,7 @@ build = "build.rs"
 
 # If you copy one of the examples into a new project, you should be using
 # [dependencies] instead.
-[dev-dependencies]
+[dependencies]
 bagua-core-internal = { path = "../bagua-core-internal" }
 bagua-store = { path = "../bagua-store" }
 nix = { version = "0.8" }
