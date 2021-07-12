@@ -9,9 +9,8 @@ use nix::{
     sys::wait::waitpid,
     unistd::{fork, ForkResult},
 };
-use std::{process::exit, thread, thread::sleep, time, time::Duration};
-use tokio::runtime::{Builder, Runtime};
-use tonic::{Request, Response, Status};
+use std::{process::exit, thread, time};
+use tokio::runtime::Runtime;
 
 fn init_process_group(
     ranks: Vec<usize>,
@@ -57,7 +56,7 @@ fn init_process_group(
     for gpu_id in gpu_setting {
         let nranks_clone = nranks.clone();
         let nccl_unique_id_clone = nccl_unique_id.clone();
-        let mut t = std::thread::spawn(move || {
+        let t = std::thread::spawn(move || {
             BaguaSingleCommunicator::new(
                 gpu_id as usize,
                 nranks_clone,
@@ -107,9 +106,9 @@ impl BaguaBackendForKai {
         tensors: &[&BaguaTensor],
     ) -> BaguaBackendForKai {
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        let service_addr = format!("{}:{}", master_addr.clone(), master_port);
         let kv_store = if gpu_setting.iter().any(|&i| i == 0) {
             Some((
-                let service_addr = format!("{}:{}", master_addr.clone(), master_port);
                 std::thread::spawn(move || {
                     let rt = Runtime::new().unwrap();
                     let kv_store = KvStoreService::new();
