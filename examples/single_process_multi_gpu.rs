@@ -195,12 +195,14 @@ fn main() {
                     let ptr = unsafe {
                         cpp::cpp!([device_id as "size_t"] -> u64 as "void*"
                         {
-                            size_t bytes = 4;
-                            CUDACHECK(cudaSetDevice(device_id));
-                            void* ptr = 0;
-                            CUDACHECK(cudaMalloc(&ptr, bytes));
-                            float x = device_id;
-                            CUDACHECK(cudaMemcpy((void*)&x, ptr, 4, cudaMemcpyHostToDevice));
+                            void * ptr = 0;
+                            return ptr;
+                            // size_t bytes = 4;
+                            // CUDACHECK(cudaSetDevice(device_id));
+                            // void* ptr = 0;
+                            // CUDACHECK(cudaMalloc(&ptr, bytes));
+                            // float x = device_id;
+                            // CUDACHECK(cudaMemcpy((void*)&x, ptr, 4, cudaMemcpyHostToDevice));
                         })
                     };
                     tensors.push(&BaguaTensor::new(
