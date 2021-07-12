@@ -163,9 +163,9 @@ impl BaguaBackendForKai {
 
 impl Drop for BaguaBackendForKai {
     fn drop(&mut self) {
-        if let Some((server_thread, tx)) = &self.kv_store {
-            (*tx).send(()).unwrap();
-            (*server_thread).join();
+        if let Some((server_thread, tx)) = self.kv_store.take() {
+            tx.send(()).unwrap();
+            server_thread.join();
         }
     }
 }
@@ -208,8 +208,8 @@ fn main() {
                     tensors.push(BaguaTensor::new(ptr, 1, 1, "f32", *device_id));
                 }
                 let mut tensors_ref = Vec::new();
-                for t in tensors {
-                    tensors_ref.push(&t);
+                for t in &tensors {
+                    tensors_ref.push(t);
                 }
 
                 let backend4kai = BaguaBackendForKai::new(
