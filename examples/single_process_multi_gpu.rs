@@ -203,7 +203,7 @@ fn main() {
                             CUDACHECK(cudaMemcpy((void*)&x, ptr, 4, cudaMemcpyHostToDevice));
                         })
                     };
-                    tensors.push(BaguaTensor::new(
+                    tensors.push(&BaguaTensor::new(
                         ptr,
                         1,
                         1,
