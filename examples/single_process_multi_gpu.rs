@@ -9,13 +9,7 @@ use nix::{
     sys::wait::waitpid,
     unistd::{fork, ForkResult},
 };
-use std::{
-    process::{exit, Command},
-    thread,
-    thread::sleep,
-    time,
-    time::Duration,
-};
+use std::{process::exit, thread, thread::sleep, time, time::Duration};
 use tokio::runtime::{Builder, Runtime};
 use tonic::{Request, Response, Status};
 
@@ -88,7 +82,10 @@ fn init_process_group(
 }
 
 pub struct BaguaBackendForKai {
-    pub kv_store: Option<(std::thread::JoinHandle<()>, tokio::sync::oneshot::Receiver<())>,
+    pub kv_store: Option<(
+        std::thread::JoinHandle<()>,
+        tokio::sync::oneshot::Receiver<()>,
+    )>,
     pub ranks: Vec<usize>,
     pub nranks: usize,
     pub gpu_setting: Vec<usize>,
@@ -111,23 +108,26 @@ impl BaguaBackendForKai {
     ) -> BaguaBackendForKai {
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
         let kv_store = if gpu_setting.iter().any(|&i| i == 0) {
-            Some((std::thread::spawn(move || {
-                let rt = Runtime::new().unwrap();
-                let kv_store = KvStoreService::new();
-                let service_addr = format!("{}:{}", master_addr, master_port);
-                println!(
-                    "{} listen on service_addr={:?}",
-                    std::process::id(),
-                    service_addr
-                );
-                let service_fut = tonic::transport::Server::builder()
-                    .add_service(BaguaKvStoreServer::new(kv_store))
-                    .serve_with_shutdown(service_addr.parse().unwrap(), async {
-                        rx.await.ok();
-                    });
-                rt.block_on(service_fut)
-                    .expect("failed to successfully run the future on RunTime");
-            }), tx))
+            Some((
+                std::thread::spawn(move || {
+                    let rt = Runtime::new().unwrap();
+                    let kv_store = KvStoreService::new();
+                    let service_addr = format!("{}:{}", master_addr, master_port);
+                    println!(
+                        "{} listen on service_addr={:?}",
+                        std::process::id(),
+                        service_addr
+                    );
+                    let service_fut = tonic::transport::Server::builder()
+                        .add_service(BaguaKvStoreServer::new(kv_store))
+                        .serve_with_shutdown(service_addr.parse().unwrap(), async {
+                            rx.await.ok();
+                        });
+                    rt.block_on(service_fut)
+                        .expect("failed to successfully run the future on RunTime");
+                }),
+                tx,
+            ))
         } else {
             None
         };
@@ -137,8 +137,15 @@ impl BaguaBackendForKai {
             ranks: ranks,
             nranks: nranks,
             gpu_setting: gpu_setting.clone(),
-            bagua_backends: gpu_setting.clone().iter()
-                .map(|&device_id| BaguaCommBackend::new(BaguaBackendForKai::BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP, device_id))
+            bagua_backends: gpu_setting
+                .clone()
+                .iter()
+                .map(|&device_id| {
+                    BaguaCommBackend::new(
+                        BaguaBackendForKai::BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP,
+                        device_id,
+                    )
+                })
                 .collect(),
             communicators: init_process_group(ranks, nranks, gpu_setting, master_addr, master_port),
         }
@@ -163,7 +170,7 @@ fn main() {
     let mut child_id_list = Vec::new();
     let processes_gpu_setting = vec![vec![0], vec![1, 2], vec![3, 4, 5, 6, 7]];
     for gpu_setting in processes_gpu_setting {
-        let gpu_setting = gpu_setting.iter().map(|&x| x as usize).collect();
+        let gpu_setting: Vec<usize> = gpu_setting.iter().map(|&x| x as usize).collect();
         match fork().expect("Failed to fork process") {
             ForkResult::Parent { child } => {
                 // println!("Try to kill me to check if the target process will be killed");
