@@ -112,7 +112,7 @@ impl BaguaBackendForKai {
                 std::thread::spawn(move || {
                     let rt = Runtime::new().unwrap();
                     let kv_store = KvStoreService::new();
-                    let service_addr = format!("{}:{}", master_addr, master_port);
+                    let service_addr = format!("{}:{}", master_addr.clone(), master_port);
                     println!(
                         "{} listen on service_addr={:?}",
                         std::process::id(),
@@ -134,7 +134,7 @@ impl BaguaBackendForKai {
 
         Self {
             kv_store: kv_store,
-            ranks: ranks,
+            ranks: ranks.clone(),
             nranks: nranks,
             gpu_setting: gpu_setting.clone(),
             bagua_backends: gpu_setting
