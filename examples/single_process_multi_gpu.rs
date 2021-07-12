@@ -87,12 +87,12 @@ fn init_process_group(
 }
 
 pub struct BaguaBackendForKai {
-    kv_store_server: Option<(std::thread::JoinHandle<()>, tokio::sync::oneshot::Receiver<())>,
-    ranks: Vec<usize>,
-    nranks: usize,
-    gpu_setting: Vec<usize>,
-    bagua_backends: Vec<BaguaCommBackend>,
-    communicators: Vec<BaguaSingleCommunicator>,
+    pub kv_store_server: Option<(std::thread::JoinHandle<()>, tokio::sync::oneshot::Receiver<())>,
+    pub ranks: Vec<usize>,
+    pub nranks: usize,
+    pub gpu_setting: Vec<usize>,
+    pub bagua_backends: Vec<BaguaCommBackend>,
+    pub communicators: Vec<BaguaSingleCommunicator>,
 }
 
 impl BaguaBackendForKai {
@@ -144,7 +144,7 @@ impl BaguaBackendForKai {
 
 impl Drop for BaguaBackendForKai {
     fn drop(&mut self) {
-        if Some((server_thread, tx)) = self.kv_store_server {
+        if let Some((server_thread, tx)) = self.kv_store_server {
             tx.send(()).unwrap();
             server_thread.join();
         }
@@ -159,6 +159,7 @@ fn main() {
     let mut child_id_list = Vec::new();
     let processes_gpu_setting = vec![vec![0], vec![1, 2], vec![3, 4, 5, 6, 7]];
     for gpu_setting in processes_gpu_setting {
+        let gpu_setting = gpu_setting.map(|&x| x as usize);
         match fork().expect("Failed to fork process") {
             ForkResult::Parent { child } => {
                 // println!("Try to kill me to check if the target process will be killed");
@@ -174,11 +175,11 @@ fn main() {
                     gpu_setting.clone(),
                     nranks,
                     gpu_setting.clone(),
-                    master_addr.clone(),
+                    master_addr.clone().into(),
                     master_port,
-                    master_addr,
+                    master_addr.clone().into(),
                     123,
-                    vec![],
+                    [] as &[&BaguaTensor],
                 );
                 thread::sleep(time::Duration::from_secs(5));
                 exit(0);
