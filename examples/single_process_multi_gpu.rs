@@ -109,10 +109,10 @@ impl BaguaBackendForKai {
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
         let kv_store = if gpu_setting.iter().any(|&i| i == 0) {
             Some((
+                let service_addr = format!("{}:{}", master_addr.clone(), master_port);
                 std::thread::spawn(move || {
                     let rt = Runtime::new().unwrap();
                     let kv_store = KvStoreService::new();
-                    let service_addr = format!("{}:{}", master_addr.clone(), master_port);
                     println!(
                         "{} listen on service_addr={:?}",
                         std::process::id(),
