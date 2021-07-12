@@ -10,20 +10,6 @@ fn main() {
         bash -c "nvcc --help | sed -n -e '/gpu-architecture <arch>/,/gpu-code <code>/ p' | sed -n -e '/Allowed values/,/gpu-code <code>/ p' | grep -i sm_ | grep -Eo 'sm_[0-9]+' | sed -e s/sm_//g | sort -g -u | tr '\n' ' '"
     ).unwrap();
     let supported_sms = supported_sms.strip_suffix(' ').unwrap().split(' ');
-    let mut cuda_cc = cc::Build::new();
-    cuda_cc
-        .cuda(true)
-        .opt_level(3)
-        .include("cpp/include")
-        .include("third_party/cub-1.8.0")
-        .include("../../bagua/.data/include")
-        .flag("-std=c++14")
-        .flag("-cudart=shared");
-    for sm in supported_sms {
-        cuda_cc
-            .flag("-gencode")
-            .flag(format!("arch=compute_{},code=sm_{}", sm, sm).as_str());
-    }
 
     let mut cpp_builder = cpp_build::Config::new();
     cpp_builder.include(format!("{}/include", cuda_home));

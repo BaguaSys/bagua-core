@@ -164,8 +164,8 @@ impl BaguaBackendForKai {
 impl Drop for BaguaBackendForKai {
     fn drop(&mut self) {
         if let Some((server_thread, tx)) = &self.kv_store {
-            tx.send(()).unwrap();
-            server_thread.join();
+            (*tx).send(()).unwrap();
+            (*server_thread).join();
         }
     }
 }
@@ -190,7 +190,7 @@ fn main() {
             }
             ForkResult::Child => {
                 println!("gpu_setting={:?}", gpu_setting);
-                let tensors = Vec::new();
+                let mut tensors = Vec::new();
                 for device_id in &gpu_setting {
                     let ptr = unsafe {
                         cpp::cpp!([device_id as "size_t"] -> u64 as "void*"
@@ -205,7 +205,11 @@ fn main() {
                             // CUDACHECK(cudaMemcpy((void*)&x, ptr, 4, cudaMemcpyHostToDevice));
                         })
                     };
-                    tensors.push(&BaguaTensor::new(ptr, 1, 1, "f32", *device_id));
+                    tensors.push(BaguaTensor::new(ptr, 1, 1, "f32", *device_id));
+                }
+                let mut tensors_ref = Vec::new();
+                for t in tensors {
+                    tensors_ref.push(&t);
                 }
 
                 let backend4kai = BaguaBackendForKai::new(
@@ -216,7 +220,7 @@ fn main() {
                     master_port,
                     master_addr.clone().into(),
                     123,
-                    tensors.as_slice(),
+                    tensors_ref.as_slice(),
                 );
                 thread::sleep(time::Duration::from_secs(5));
                 exit(0);
