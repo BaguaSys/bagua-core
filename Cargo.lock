@@ -86,7 +86,7 @@ dependencies = [
  "numpy",
  "openssl-sys",
  "parking_lot",
- "pyo3",
+ "pyo3 0.13.2",
  "shadow-rs",
  "tracing",
  "tracing-subscriber",
@@ -114,7 +114,7 @@ dependencies = [
  "once_cell",
  "oneshot",
  "parking_lot",
- "pyo3",
+ "pyo3 0.13.2",
  "scheduled-thread-pool",
  "serde",
  "serde_json",
@@ -143,7 +143,7 @@ dependencies = [
  "numpy",
  "openssl-sys",
  "parking_lot",
- "pyo3",
+ "pyo3 0.13.2",
  "shadow-rs",
  "tracing",
  "tracing-subscriber",
@@ -817,16 +817,16 @@ dependencies = [
 
 [[package]]
 name = "numpy"
-version = "0.13.2"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a996bcd58fb29bef9debf717330cd8876c3b4adbeea4939020a5326a3afad4d9"
+checksum = "e2aa1825ceeca96819a7b287f5d60fb0a50a6fc4e7c04bf08c9be847698875bd"
 dependencies = [
  "cfg-if 0.1.10",
  "libc",
  "ndarray",
  "num-complex",
  "num-traits",
- "pyo3",
+ "pyo3 0.14.1",
 ]
 
 [[package]]
@@ -1041,6 +1041,27 @@ dependencies = [
  "paste",
  "pyo3-macros",
  "unindent",
+]
+
+[[package]]
+name = "pyo3"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "338f7f3701e11fd7f76508c91fbcaabc982564bcaf4d1ca7e1574ff2b4778aec"
+dependencies = [
+ "cfg-if 1.0.0",
+ "libc",
+ "parking_lot",
+ "pyo3-build-config",
+]
+
+[[package]]
+name = "pyo3-build-config"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dcb2e98cc9ccc83d4f7115c8f925e0057e88c8d324b1bc4c2db4a7270c06ac9d"
+dependencies = [
+ "once_cell",
 ]
 
 [[package]]
