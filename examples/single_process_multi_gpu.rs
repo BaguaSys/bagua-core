@@ -84,7 +84,7 @@ fn init_process_group(
 pub struct BaguaBackendForKai {
     pub kv_store: Option<(
         std::thread::JoinHandle<()>,
-        tokio::sync::oneshot::Receiver<()>,
+        tokio::sync::oneshot::Sender<()>,
     )>,
     pub ranks: Vec<usize>,
     pub nranks: usize,
@@ -190,7 +190,7 @@ fn main() {
                     master_port,
                     master_addr.clone().into(),
                     123,
-                    [] as &[&BaguaTensor],
+                    &[] as &[&BaguaTensor],
                 );
                 thread::sleep(time::Duration::from_secs(5));
                 exit(0);
