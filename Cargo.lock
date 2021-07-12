@@ -475,6 +475,7 @@ dependencies = [
  "bagua-store",
  "cc",
  "cmd_lib",
+ "cpp",
  "cpp_build",
  "nix",
  "parking_lot",

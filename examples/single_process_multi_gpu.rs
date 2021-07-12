@@ -190,7 +190,7 @@ fn main() {
             }
             ForkResult::Child => {
                 println!("gpu_setting={:?}", gpu_setting);
-                let bagua_tensors = Vec::new();
+                let tensors = Vec::new();
                 for device_id in &gpu_setting {
                     let ptr = unsafe {
                         cpp::cpp!([device_id as "size_t"] -> u64 as "void*"
@@ -203,12 +203,12 @@ fn main() {
                             CUDACHECK(cudaMemcpy((void*)&x, ptr, 4, cudaMemcpyHostToDevice));
                         })
                     };
-                    bagua_tensors.push(BaguaTensor::new(
+                    tensors.push(BaguaTensor::new(
                         ptr,
                         1,
                         1,
                         "f32",
-                        device_id,
+                        *device_id,
                     ));
                 }
 
@@ -218,9 +218,9 @@ fn main() {
                     gpu_setting.clone(),
                     master_addr.clone().into(),
                     master_port,
-                    autotune_service_addr = master_addr.clone().into(),
+                    master_addr.clone().into(),
                     123,
-                    bagua_tensors.into(),
+                    tensors.as_slice(),
                 );
                 thread::sleep(time::Duration::from_secs(5));
                 exit(0);
