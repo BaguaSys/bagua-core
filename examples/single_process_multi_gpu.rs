@@ -147,10 +147,11 @@ impl BaguaBackendForKai {
 
 impl Drop for BaguaBackendForKai {
     fn drop(&mut self) {
-        if let Some((server_thread, tx)) = self.kv_store {
-            tx.send(()).unwrap();
-            server_thread.join();
-        }
+        let _ = self.kv_store;
+        // if let Some((server_thread, tx)) = self.kv_store {
+        //     tx.send(()).unwrap();
+        //     server_thread.join();
+        // }
     }
 }
 
@@ -162,7 +163,7 @@ fn main() {
     let mut child_id_list = Vec::new();
     let processes_gpu_setting = vec![vec![0], vec![1, 2], vec![3, 4, 5, 6, 7]];
     for gpu_setting in processes_gpu_setting {
-        let gpu_setting = gpu_setting.iter().map(|&x| x as usize);
+        let gpu_setting = gpu_setting.iter().map(|&x| x as usize).collect();
         match fork().expect("Failed to fork process") {
             ForkResult::Parent { child } => {
                 // println!("Try to kill me to check if the target process will be killed");
