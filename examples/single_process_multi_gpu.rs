@@ -1,9 +1,9 @@
 use bagua_core_internal::communicators::{BaguaCommOpConfig, BaguaSingleCommunicator};
 use bagua_core_internal::datatypes::{BaguaBucket, BaguaTensor};
+use bagua_core_internal::resource_pool::CudaMemory;
 use bagua_core_internal::telemetry::{
     BaguaCommCoreTelemetry, RegisterModelsRequest, TensorDeclaration,
 };
-use bagua_core_internal::resource_pool::CudaMemory;
 use bagua_core_internal::BaguaCommBackend;
 use bagua_store::{BaguaKvStore, BaguaKvStoreServer, KvStoreService};
 use cpp::cpp;
@@ -190,39 +190,36 @@ fn main() {
             }
             ForkResult::Child => {
                 println!("gpu_setting={:?}", gpu_setting);
-                let tensors = Vec::new();
-                for device_id in &gpu_setting {
-                    let ptr = unsafe {
-                        cpp::cpp!([device_id as "size_t"] -> u64 as "void*"
-                        {
-                            void * ptr = 0;
-                            return ptr;
-                            // size_t bytes = 4;
-                            // CUDACHECK(cudaSetDevice(device_id));
-                            // void* ptr = 0;
-                            // CUDACHECK(cudaMalloc(&ptr, bytes));
-                            // float x = device_id;
-                            // CUDACHECK(cudaMemcpy((void*)&x, ptr, 4, cudaMemcpyHostToDevice));
-                        })
-                    };
-                    tensors.push(&BaguaTensor::new(
-                        ptr,
-                        1,
-                        1,
-                        "f32",
-                        *device_id,
-                    ));
-                }
+                cpp::cpp!([] {
+                    printf("Hello world!\n");
+                });
+                // let tensors = Vec::new();
+                // for device_id in &gpu_setting {
+                //     let ptr = unsafe {
+                //         cpp::cpp!([device_id as "size_t"] -> u64 as "void*"
+                //         {
+                //             void * ptr = 0;
+                //             return ptr;
+                //             // size_t bytes = 4;
+                //             // CUDACHECK(cudaSetDevice(device_id));
+                //             // void* ptr = 0;
+                //             // CUDACHECK(cudaMalloc(&ptr, bytes));
+                //             // float x = device_id;
+                //             // CUDACHECK(cudaMemcpy((void*)&x, ptr, 4, cudaMemcpyHostToDevice));
+                //         })
+                //     };
+                //     tensors.push(&BaguaTensor::new(ptr, 1, 1, "f32", *device_id));
+                // }
 
-                let backend4kai = BaguaBackendForKai::new(
-                    gpu_setting.clone(),
-                    nranks,
-                    gpu_setting.clone(),
-                    master_addr.clone().into(),
-                    master_port,
-                    master_addr.clone().into(),
-                    123,
-                    tensors.as_slice(),
+                // let backend4kai = BaguaBackendForKai::new(
+                //     gpu_setting.clone(),
+                //     nranks,
+                //     gpu_setting.clone(),
+                //     master_addr.clone().into(),
+                //     master_port,
+                //     master_addr.clone().into(),
+                //     123,
+                //     tensors.as_slice(),
                 );
                 thread::sleep(time::Duration::from_secs(5));
                 exit(0);
