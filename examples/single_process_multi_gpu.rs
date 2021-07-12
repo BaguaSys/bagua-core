@@ -86,25 +86,25 @@ fn init_process_group(
     comm_list
 }
 
-pub struct BaguaBackendForKai {
-    inner: BaguaCommBackend,
-    communicator: BaguaSingleCommunicator,
-}
+// pub struct BaguaBackendForKai {
+//     inner: BaguaCommBackend,
+//     communicator: BaguaSingleCommunicator,
+// }
 
-impl BaguaBackendForKai {
-    pub fn new(
-        gpu_setting: Vec<i32>,
-        ranks: Vec<i32>,
-        nranks: usize,
-        master_addr: String,
-        master_port: i32,
-        autotune_service_addr: String,
-        autotune_service_port: i32,
-        tensors: &[&BaguaTensor],
-    ) -> BaguaBackendForKai {
+// impl BaguaBackendForKai {
+//     pub fn new(
+//         gpu_setting: Vec<i32>,
+//         ranks: Vec<i32>,
+//         nranks: usize,
+//         master_addr: String,
+//         master_port: i32,
+//         autotune_service_addr: String,
+//         autotune_service_port: i32,
+//         tensors: &[&BaguaTensor],
+//     ) -> BaguaBackendForKai {
 
-    }
-}
+//     }
+// }
 
 fn main() {
     let nranks = 8;
@@ -153,8 +153,7 @@ fn main() {
                         );
                         let service_fut = tonic::transport::Server::builder()
                             .add_service(BaguaKvStoreServer::new(kv_store))
-                            .serve(service_addr.parse().unwrap())
-                            .with_graceful_shutdown(async {
+                            .serve_with_shutdown(service_addr.parse().unwrap(), async {
                                 rx.await.ok();
                             });
                         rt.block_on(service_fut)
