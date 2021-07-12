@@ -3,6 +3,7 @@ use bagua_core_internal::datatypes::{BaguaBucket, BaguaTensor};
 use bagua_core_internal::telemetry::{
     BaguaCommCoreTelemetry, RegisterModelsRequest, TensorDeclaration,
 };
+use bagua_core_internal::BaguaCommBackend;
 use bagua_store::{BaguaKvStore, BaguaKvStoreServer, KvStoreService};
 use nix::{
     sys::wait::waitpid,
@@ -10,29 +11,35 @@ use nix::{
 };
 use std::{
     process::{exit, Command},
-    thread::sleep,
     thread,
+    thread::sleep,
     time,
     time::Duration,
 };
 use tokio::runtime::{Builder, Runtime};
 use tonic::{Request, Response, Status};
 
-fn init_process_group(gpu_setting: Vec<i32>, nranks: usize, master_addr: String, master_port: i32) {
+fn init_process_group(
+    gpu_setting: Vec<i32>,
+    nranks: usize,
+    master_addr: String,
+    master_port: i32,
+) -> Vec<BaguaSingleCommunicator> {
     let mut kv = loop {
         let kv = BaguaKvStore::open(format!("http://{}:{}", master_addr, master_port));
         match kv {
             Err(err) => {
                 println!("BaguaKvStore::open failed, err={:?}", err);
                 thread::sleep(time::Duration::from_secs(1));
-            },
+            }
             Ok(kv) => break kv,
         }
     };
 
     let nccl_unique_id = if gpu_setting.iter().any(|&i| i == 0) {
         let nccl_unique_id = BaguaSingleCommunicator::generate_nccl_unique_id_str();
-        kv.set("nccl_unique_id".into(), nccl_unique_id.clone().as_bytes()).unwrap();
+        kv.set("nccl_unique_id".into(), nccl_unique_id.clone().as_bytes())
+            .unwrap();
 
         nccl_unique_id.as_bytes().to_vec()
     } else {
@@ -42,7 +49,7 @@ fn init_process_group(gpu_setting: Vec<i32>, nranks: usize, master_addr: String,
                 Err(err) => {
                     println!("kv.get nccl_unique_id failed, err={:?}", err);
                     thread::sleep(time::Duration::from_secs(1));
-                },
+                }
                 Ok(nccl_unique_id) => break nccl_unique_id,
             }
         };
@@ -55,13 +62,15 @@ fn init_process_group(gpu_setting: Vec<i32>, nranks: usize, master_addr: String,
     for gpu_id in gpu_setting {
         let nranks_clone = nranks.clone();
         let nccl_unique_id_clone = nccl_unique_id.clone();
-        let mut t = std::thread::spawn(move || BaguaSingleCommunicator::new(
-            gpu_id as usize,
-            nranks_clone,
-            gpu_id as usize,
-            0,
-            std::str::from_utf8(&nccl_unique_id_clone).unwrap(),
-        ));
+        let mut t = std::thread::spawn(move || {
+            BaguaSingleCommunicator::new(
+                gpu_id as usize,
+                nranks_clone,
+                gpu_id as usize,
+                0,
+                std::str::from_utf8(&nccl_unique_id_clone).unwrap(),
+            )
+        });
         comm_init_threads.push(t);
     }
 
@@ -72,6 +81,28 @@ fn init_process_group(gpu_setting: Vec<i32>, nranks: usize, master_addr: String,
 
     for communicator in comm_list {
         println!("rank={} ready!", communicator.rank());
+    }
+
+    comm_list
+}
+
+pub struct BaguaBackendForKai {
+    inner: BaguaCommBackend,
+    communicator: BaguaSingleCommunicator,
+}
+
+impl BaguaBackendForKai {
+    pub fn new(
+        gpu_setting: Vec<i32>,
+        ranks: Vec<i32>,
+        nranks: usize,
+        master_addr: String,
+        master_port: i32,
+        autotune_service_addr: String,
+        autotune_service_port: i32,
+        tensors: &[&BaguaTensor],
+    ) -> BaguaBackendForKai {
+
     }
 }
 
@@ -95,6 +126,7 @@ fn main() {
             ForkResult::Child => {
                 println!("gpu_setting={:?}", gpu_setting);
                 // let (sender, receiver) = std::sync::mpsc::channel();
+                let (tx, rx) = tokio::sync::oneshot::channel::<()>();
                 let kv_store = if gpu_setting.iter().any(|&i| i == 0) {
                     Some(std::thread::spawn(move || {
                         // match sender.send(std::net::TcpStream::connect(("127.0.0.1", 12333))) {
@@ -114,10 +146,17 @@ fn main() {
                         let rt = Runtime::new().unwrap();
                         let kv_store = KvStoreService::new();
                         let service_addr = format!("{}:{}", master_addr, master_port);
-                        println!("{} listen on service_addr={:?}", std::process::id(), service_addr);
+                        println!(
+                            "{} listen on service_addr={:?}",
+                            std::process::id(),
+                            service_addr
+                        );
                         let service_fut = tonic::transport::Server::builder()
                             .add_service(BaguaKvStoreServer::new(kv_store))
-                            .serve(service_addr.parse().unwrap());
+                            .serve(service_addr.parse().unwrap())
+                            .with_graceful_shutdown(async {
+                                rx.await.ok();
+                            });
                         rt.block_on(service_fut)
                             .expect("failed to successfully run the future on RunTime");
                     }))
@@ -144,11 +183,16 @@ fn main() {
                 // });
                 // return receiver.recv_timeout(Duration::from_millis(5000));
 
-                init_process_group(gpu_setting, nranks, master_addr.into(), master_port);
+                let comm_list =
+                    init_process_group(gpu_setting, nranks, master_addr.into(), master_port);
+
+                // bagua_backend list
+                // register_ordered_buckets
 
                 if let Some(server_thread) = kv_store {
                     thread::sleep(time::Duration::from_secs(5));
-                    // server_thread.join();
+                    tx.send(()).unwrap();
+                    server_thread.join();
                 }
                 exit(0);
             }
