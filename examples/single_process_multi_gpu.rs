@@ -79,7 +79,7 @@ fn init_process_group(
         comm_list.push(t.join().unwrap());
     }
 
-    for communicator in comm_list {
+    for communicator in &comm_list {
         println!("rank={} ready!", communicator.rank());
     }
 
