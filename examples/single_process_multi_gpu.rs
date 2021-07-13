@@ -254,6 +254,9 @@ fn main() {
                         println!("device_id={}", device_id);
                         cpp::cpp!([device_id as "size_t"] -> u64 as "void*"
                         {
+                            int deviceCount = 0;
+                            CUDACHECK(cudaGetDeviceCount(&deviceCount));
+                            printf("deviceCount=%d\n", deviceCount);
                             size_t bytes = 4;
                             CUDACHECK(cudaSetDevice(device_id));
                             void* ptr = 0;
