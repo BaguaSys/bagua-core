@@ -252,11 +252,11 @@ fn main() {
                 for device_id in &gpu_setting {
                     let ptr = unsafe {
                         println!("device_id={}", device_id);
-                        cpp::cpp!([*device_id as "size_t"] -> u64 as "void*"
+                        cpp::cpp!([device_id as "size_t"] -> u64 as "void*"
                         {
                             int deviceCount = 0;
                             CUDACHECK(cudaGetDeviceCount(&deviceCount));
-                            printf("deviceCount=%d\n", deviceCount);
+                            printf("deviceCount=%d, device_id=%d\n", deviceCount, device_id);
                             size_t bytes = 4;
                             CUDACHECK(cudaSetDevice(device_id));
                             void* ptr = 0;
