@@ -161,6 +161,8 @@ impl BaguaBackendForKAI {
             autotune_service_addr, autotune_service_port
         ));
         let req = RegisterTensorsRequest {
+            // TODO @shjwudp: split new to init_process_group and register_tensors
+            model_name: "default_model".to_string(),
             tensor_list: tensors
                 .clone()
                 .iter()

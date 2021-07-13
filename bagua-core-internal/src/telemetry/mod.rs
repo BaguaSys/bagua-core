@@ -342,6 +342,7 @@ pub struct TensorDeclaration {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterTensorsRequest {
+    pub model_name: String,
     pub tensor_list: Vec<TensorDeclaration>,
 }
 
