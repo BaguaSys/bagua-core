@@ -1,18 +1,22 @@
-use bagua_core_internal::communicators::{BaguaCommOpConfig, BaguaSingleCommunicator};
-use bagua_core_internal::datatypes::{BaguaBucket, BaguaTensor};
-use bagua_core_internal::resource_pool::CudaMemory;
-use bagua_core_internal::telemetry::{
-    BaguaCommCoreTelemetry, RegisterModelsRequest, TensorDeclaration,
-};
-use bagua_core_internal::BaguaCommBackend;
-use bagua_store::{BaguaKvStore, BaguaKvStoreServer, KvStoreService};
+extern crate argparse;
+
+use argparse::{ArgumentParser, Store, StoreTrue};
 use cpp::cpp;
 use nix::{
     sys::wait::waitpid,
     unistd::{fork, ForkResult},
 };
-use std::{process::exit, thread, time};
+use std::{thread, time};
 use tokio::runtime::Runtime;
+
+use bagua_core_internal::communicators::{BaguaCommOpConfig, BaguaSingleCommunicator};
+use bagua_core_internal::datatypes::{BaguaBucket, BaguaTensor};
+use bagua_core_internal::resource_pool::CudaMemory;
+use bagua_core_internal::telemetry::{
+    BaguaCommCoreTelemetry, RegisterTensorsRequest, TensorDeclaration,
+};
+use bagua_core_internal::BaguaCommBackend;
+use bagua_store::{BaguaKvStore, BaguaKvStoreServer, KvStoreService};
 
 cpp! {{
 #include <nccl.h>
@@ -90,7 +94,7 @@ fn init_process_group(
     comm_list
 }
 
-pub struct BaguaBackendForKai {
+pub struct BaguaBackendForKAI {
     pub kv_store: Option<(
         std::thread::JoinHandle<()>,
         tokio::sync::oneshot::Sender<()>,
@@ -100,9 +104,10 @@ pub struct BaguaBackendForKai {
     pub gpu_setting: Vec<usize>,
     pub bagua_backends: Vec<BaguaCommBackend>,
     pub communicators: Vec<BaguaSingleCommunicator>,
+    pub registered_tensors: Vec<NamedBaguaTensor>,
 }
 
-impl BaguaBackendForKai {
+impl BaguaBackendForKAI {
     const BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP: usize = 100;
 
     pub fn new(
@@ -113,8 +118,8 @@ impl BaguaBackendForKai {
         master_port: i32,
         autotune_service_addr: String,
         autotune_service_port: i32,
-        tensors: &[&BaguaTensor],
-    ) -> BaguaBackendForKai {
+        tensors: Vec<BaguaTensor>,
+    ) -> BaguaBackendForKAI {
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
         let service_addr = format!("{}:{}", master_addr.clone(), master_port);
         let kv_store = if gpu_setting.iter().any(|&i| i == 0) {
@@ -145,11 +150,50 @@ impl BaguaBackendForKai {
             .iter()
             .map(|&device_id| {
                 BaguaCommBackend::new(
-                    BaguaBackendForKai::BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP,
+                    BaguaBackendForKAI::BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP,
                     device_id,
                 )
             })
             .collect();
+
+        let telemetry = BaguaCommCoreTelemetry::new(
+            format!("{}:{}", autotune_service_addr, autotune_service_port).to_string(),
+        );
+        let req = RegisterTensorsRequest {
+            tensor_list: tensors
+                .clone()
+                .iter()
+                .map(|&t| TensorDeclaration {
+                    name: t.name(),
+                    num_elements: t.num_elements(),
+                    dtype: t.dtype(),
+                })
+                .collect(),
+        };
+        let rsp = telemetry.register_tensors(req).unwrap();
+        let buckets = Vec::new();
+        for (i, td_bucket) in rsp.recommended_hyperparameters.buckets.iter().enumerate() {
+            let tensors_ref = Vec::<&BaguaTensor>::new();
+            for td_tensor in td_bucket.iter() {
+                tensors_ref.extend(
+                    tensors
+                        .mut_iter()
+                        .filter(|&t| t.name() == td_tensor.name)
+                        .collect(),
+                );
+            }
+            buckets.push(BaguaBucket::new(
+                tensors_ref.as_slice(),
+                format!("bucket-{}", i).to_string(),
+            ));
+        }
+        let buckets_ref = Vec::new();
+        for bucket in &buckets {
+            buckets_ref.push(bucket);
+        }
+        for backend in &backends {
+            backend.register_ordered_buckets(buckets_ref.as_slice());
+        }
 
         Self {
             kv_store: kv_store,
@@ -162,7 +206,7 @@ impl BaguaBackendForKai {
     }
 }
 
-impl Drop for BaguaBackendForKai {
+impl Drop for BaguaBackendForKAI {
     fn drop(&mut self) {
         if let Some((server_thread, tx)) = self.kv_store.take() {
             tx.send(()).unwrap();
@@ -173,8 +217,22 @@ impl Drop for BaguaBackendForKai {
 
 fn main() {
     let nranks = 8;
-    let master_addr = "127.0.0.1";
-    let master_port = 8123;
+    let mut master_addr = "127.0.0.1".to_string();
+    let mut master_port = 8123;
+    let mut autotune_service_addr = "127.0.0.1".to_string();
+    let mut autotune_service_port = 8124;
+
+    {
+        let mut ap = ArgumentParser::new();
+        ap.refer(&mut master_addr)
+            .add_option(&["--master_addr"], Store, "");
+        ap.refer(&mut master_port)
+            .add_option(&["--master_port"], Store, "");
+        ap.refer(&mut autotune_service_addr)
+            .add_option(&["--autotune_service_addr"], Store, "");
+        ap.refer(&mut autotune_service_port)
+            .add_option(&["--autotune_service_port"], Store, "");
+    }
 
     let mut child_id_list = Vec::new();
     let processes_gpu_setting = vec![vec![0], vec![1, 2], vec![3, 4, 5, 6, 7]];
@@ -196,14 +254,12 @@ fn main() {
                     let ptr = unsafe {
                         cpp::cpp!([device_id as "size_t"] -> u64 as "void*"
                         {
-                            void * ptr = 0;
-                            return ptr;
-                            // size_t bytes = 4;
-                            // CUDACHECK(cudaSetDevice(device_id));
-                            // void* ptr = 0;
-                            // CUDACHECK(cudaMalloc(&ptr, bytes));
-                            // float x = device_id;
-                            // CUDACHECK(cudaMemcpy((void*)&x, ptr, 4, cudaMemcpyHostToDevice));
+                            size_t bytes = 4;
+                            CUDACHECK(cudaSetDevice(device_id));
+                            void* ptr = 0;
+                            CUDACHECK(cudaMalloc(&ptr, bytes));
+                            float x = device_id;
+                            CUDACHECK(cudaMemcpy((void*)&x, ptr, 4, cudaMemcpyHostToDevice));
                         })
                     };
                     tensors.push(BaguaTensor::new(ptr, 1, 1, "f32", *device_id));
@@ -213,18 +269,18 @@ fn main() {
                     tensors_ref.push(t);
                 }
 
-                let backend4kai = BaguaBackendForKai::new(
+                let backend4kai = BaguaBackendForKAI::new(
                     gpu_setting.clone(),
                     nranks,
                     gpu_setting.clone(),
-                    master_addr.clone().into(),
+                    master_addr.clone(),
                     master_port,
-                    master_addr.clone().into(),
-                    123,
+                    autotune_service_addr.clone(),
+                    autotune_service_port,
                     tensors_ref.as_slice(),
                 );
                 thread::sleep(time::Duration::from_secs(5));
-                exit(0);
+                std::process::exit(0);
             }
         }
     }

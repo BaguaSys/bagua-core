@@ -29,7 +29,6 @@ pub struct BaguaCommCoreTelemetry {
     client: reqwest::blocking::Client,
     server_addr: String,
     current_payload: TelemetryPayload,
-    pub recent_speed: RecentMeanMetric,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -65,7 +64,6 @@ impl BaguaCommCoreTelemetry {
             client: client,
             server_addr: server_addr.to_string(),
             current_payload: TelemetryPayload::default(),
-            recent_speed: RecentMeanMetric::new(),
         }
     }
 
@@ -93,13 +91,13 @@ impl BaguaCommCoreTelemetry {
         Ok(())
     }
 
-    pub fn register_models(
+    pub fn register_tensors(
         &self,
-        req: RegisterModelsRequest,
-    ) -> Result<RegisterModelsResponse, BaguaCoreError> {
-        let rsp: RegisterModelsResponse = self
+        req: RegisterTensorsRequest,
+    ) -> Result<RegisterTensorsResponse, BaguaCoreError> {
+        let rsp: RegisterTensorsResponse = self
             .client
-            .post(format!("http://{}/api/v1/register_models", self.server_addr).as_str())
+            .post(format!("http://{}/api/v1/register_tensors", self.server_addr).as_str())
             .json(&req)
             .send()
             .unwrap()
@@ -118,7 +116,7 @@ impl BaguaCommCoreTelemetry {
             .unwrap();
         if rsp.status() != 200 {
             return Err(BaguaCoreError::TelemetryError(format!(
-                "register_models failed, rsp={:?}",
+                "report_metrics failed, rsp={:?}",
                 rsp
             )));
         }
@@ -349,7 +347,7 @@ pub struct TensorDeclaration {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct RegisterModelsRequest {
+pub struct RegisterTensorsRequest {
     pub tensor_list: Vec<TensorDeclaration>,
 }
 
@@ -361,7 +359,7 @@ pub struct BaguaHyperparameters {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct RegisterModelsResponse {
+pub struct RegisterTensorsResponse {
     pub recommended_hyperparameters: BaguaHyperparameters,
 }
 
