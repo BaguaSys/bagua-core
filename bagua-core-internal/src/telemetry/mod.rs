@@ -350,7 +350,6 @@ pub struct RegisterTensorsRequest {
 pub struct BaguaHyperparameters {
     pub buckets: Vec<Vec<TensorDeclaration>>,
     pub is_hierarchical_reduce: bool,
-    pub distributed_algorithm: String,
 }
 
 #[derive(Deserialize, Debug)]
