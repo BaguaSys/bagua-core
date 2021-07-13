@@ -157,7 +157,7 @@ impl BaguaBackendForKAI {
             .collect();
 
         let telemetry = BaguaCommCoreTelemetry::new(
-            format!("{}:{}", autotune_service_addr, autotune_service_port).into(),
+            format!("{}:{}", autotune_service_addr, autotune_service_port),
         );
         let req = RegisterTensorsRequest {
             tensor_list: tensors
@@ -184,7 +184,7 @@ impl BaguaBackendForKAI {
             }
             buckets.push(BaguaBucket::new(
                 tensors_ref.as_slice(),
-                format!("bucket-{}", i).into(),
+                &*format!("bucket-{}", i),
             ));
         }
         let buckets_ref = Vec::new();

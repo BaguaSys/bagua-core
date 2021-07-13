@@ -54,7 +54,7 @@ impl Default for TelemetryPayload {
 }
 
 impl BaguaCommCoreTelemetry {
-    pub fn new(server_addr: &str) -> Self {
+    pub fn new(server_addr: String) -> Self {
         let client = reqwest::blocking::Client::builder()
             .no_proxy()
             .build()
@@ -62,15 +62,9 @@ impl BaguaCommCoreTelemetry {
 
         Self {
             client: client,
-            server_addr: server_addr.to_string(),
+            server_addr: server_addr,
             current_payload: TelemetryPayload::default(),
         }
-    }
-
-    pub fn new_tensor_ready(&mut self, tensor_name: &str) {
-        self.current_payload
-            .tensor_ready_order
-            .push(tensor_name.to_string());
     }
 
     pub fn push_payload_and_clear(&mut self) -> Result<(), BaguaCoreError> {
