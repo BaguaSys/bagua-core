@@ -794,12 +794,6 @@ impl BaguaTensor {
         if cuda_event_ptr == 0 {
             tracing::info!("mark comm ready with an event 0, ignoring event");
         }
-        match TELEMETRY.as_ref() {
-            None => {}
-            Some(ref x) => {
-                x.lock().new_tensor_ready(self.inner.read().name.as_str());
-            }
-        }
         let mut guard = self.inner.write();
         guard.ready_for_comm = true;
         guard.ready_cuda_event_ptr = cuda_event_ptr;

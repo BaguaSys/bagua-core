@@ -157,7 +157,7 @@ impl BaguaBackendForKAI {
             .collect();
 
         let telemetry = BaguaCommCoreTelemetry::new(
-            format!("{}:{}", autotune_service_addr, autotune_service_port),
+            &*format!("{}:{}", autotune_service_addr, autotune_service_port),
         );
         let req = RegisterTensorsRequest {
             tensor_list: tensors

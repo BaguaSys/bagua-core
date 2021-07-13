@@ -54,7 +54,7 @@ impl Default for TelemetryPayload {
 }
 
 impl BaguaCommCoreTelemetry {
-    pub fn new(server_addr: String) -> Self {
+    pub fn new(server_addr: &str) -> Self {
         let client = reqwest::blocking::Client::builder()
             .no_proxy()
             .build()
@@ -62,7 +62,7 @@ impl BaguaCommCoreTelemetry {
 
         Self {
             client: client,
-            server_addr: server_addr,
+            server_addr: server_addr.to_string(),
             current_payload: TelemetryPayload::default(),
         }
     }
