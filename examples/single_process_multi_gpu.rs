@@ -145,7 +145,7 @@ impl BaguaBackendForKAI {
         } else {
             None
         };
-        let backends = gpu_setting
+        let backends: Vec<BaguaCommBackend> = gpu_setting
             .clone()
             .iter()
             .map(|&device_id| {
@@ -192,7 +192,7 @@ impl BaguaBackendForKAI {
         for bucket in &buckets {
             buckets_ref.push(bucket);
         }
-        for backend in &backends {
+        for backend in &mut backends {
             backend.register_ordered_buckets(buckets_ref.as_slice());
         }
 
@@ -271,7 +271,7 @@ fn main() {
                         *device_id,
                         ptr,
                         1,
-                        BaguaTensorDtype.F32,
+                        BaguaTensorDtype::F32,
                         0,
                     ));
                 }
