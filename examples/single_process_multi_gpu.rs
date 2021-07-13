@@ -172,13 +172,13 @@ impl BaguaBackendForKAI {
                 .collect(),
         };
         let rsp = telemetry.register_tensors(req).unwrap();
-        let buckets = Vec::new();
+        let mut buckets = Vec::new();
         for (i, td_bucket) in rsp.recommended_hyperparameters.buckets.iter().enumerate() {
-            let tensors_ref = Vec::<&BaguaTensor>::new();
+            let mut tensors_ref = Vec::<&BaguaTensor>::new();
             for td_tensor in td_bucket.iter() {
                 let t: Vec<&BaguaTensor> = tensors
                     .iter()
-                    .filter(|&t| t.name() == td_tensor.name)
+                    .filter(|t| t.name() == td_tensor.name)
                     .collect();
                 tensors_ref.extend(t);
             }
@@ -189,7 +189,7 @@ impl BaguaBackendForKAI {
         for bucket in &buckets {
             buckets_ref.push(bucket);
         }
-        for backend in &mut backends {
+        for backend in &backends {
             backend.register_ordered_buckets(buckets_ref.as_slice());
         }
 
