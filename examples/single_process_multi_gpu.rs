@@ -152,7 +152,8 @@ impl BaguaBackendForKAI {
                 BaguaCommBackend::new(
                     BaguaBackendForKAI::BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP,
                     device_id,
-                ).unwrap()
+                )
+                .unwrap()
             })
             .collect();
 
