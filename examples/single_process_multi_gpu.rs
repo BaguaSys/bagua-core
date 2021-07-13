@@ -145,7 +145,7 @@ impl BaguaBackendForKAI {
         } else {
             None
         };
-        let backends: Vec<BaguaCommBackend> = gpu_setting
+        let mut backends: Vec<BaguaCommBackend> = gpu_setting
             .clone()
             .iter()
             .map(|&device_id| {
@@ -164,7 +164,7 @@ impl BaguaBackendForKAI {
             tensor_list: tensors
                 .clone()
                 .iter()
-                .map(|&t| TensorDeclaration {
+                .map(|t| TensorDeclaration {
                     name: t.name(),
                     num_elements: t.num_elements(),
                     dtype: t.dtype(),
@@ -185,11 +185,11 @@ impl BaguaBackendForKAI {
             buckets
                 .push(BaguaBucket::new(tensors_ref.as_slice(), &*format!("bucket-{}", i)).unwrap());
         }
-        let buckets_ref = Vec::new();
+        let mut buckets_ref = Vec::new();
         for bucket in &buckets {
             buckets_ref.push(bucket);
         }
-        for backend in &backends {
+        for backend in &mut backends {
             backend.register_ordered_buckets(buckets_ref.as_slice());
         }
 
