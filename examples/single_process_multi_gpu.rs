@@ -163,6 +163,7 @@ impl BaguaBackendForKAI {
         let req = RegisterTensorsRequest {
             // TODO @shjwudp: split new to init_process_group and register_tensors
             model_name: "default_model".to_string(),
+            whether_to_bucket: true,
             tensor_list: tensors
                 .clone()
                 .iter()
