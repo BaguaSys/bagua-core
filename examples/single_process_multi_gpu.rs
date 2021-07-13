@@ -10,7 +10,7 @@ use std::{thread, time};
 use tokio::runtime::Runtime;
 
 use bagua_core_internal::communicators::{BaguaCommOpConfig, BaguaSingleCommunicator};
-use bagua_core_internal::datatypes::{BaguaBucket, BaguaTensor};
+use bagua_core_internal::datatypes::{BaguaBucket, BaguaTensor, BaguaTensorDtype};
 use bagua_core_internal::resource_pool::CudaMemory;
 use bagua_core_internal::telemetry::{
     BaguaCommCoreTelemetry, RegisterTensorsRequest, TensorDeclaration,
@@ -157,7 +157,7 @@ impl BaguaBackendForKAI {
             .collect();
 
         let telemetry = BaguaCommCoreTelemetry::new(
-            format!("{}:{}", autotune_service_addr, autotune_service_port),
+            format!("{}:{}", autotune_service_addr, autotune_service_port).into(),
         );
         let req = RegisterTensorsRequest {
             tensor_list: tensors
@@ -184,7 +184,7 @@ impl BaguaBackendForKAI {
             }
             buckets.push(BaguaBucket::new(
                 tensors_ref.as_slice(),
-                format!("bucket-{}", i),
+                format!("bucket-{}", i).into(),
             ));
         }
         let buckets_ref = Vec::new();
@@ -265,7 +265,14 @@ fn main() {
                             return ptr;
                         })
                     };
-                    tensors.push(BaguaTensor::new(ptr, 1, 1, "f32", *device_id));
+                    tensors.push(BaguaTensor::new(
+                        "tensor-1".to_string(),
+                        *device_id,
+                        ptr,
+                        1,
+                        BaguaTensorDtype.F32,
+                        0,
+                    ));
                 }
 
                 let backend4kai = BaguaBackendForKAI::new(
