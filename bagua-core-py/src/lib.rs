@@ -1,13 +1,15 @@
 #![allow(clippy::needless_return)]
 
 use bagua_core_internal::communicators::BaguaSingleCommunicator;
-use bagua_core_internal::datatypes::{BaguaBucket, BaguaTensor, BaguaTensorDtype};
+use bagua_core_internal::datatypes::{
+    BaguaBucket, BaguaReductionOp, BaguaTensor, BaguaTensorDtype,
+};
 use bagua_core_internal::BaguaCommBackend;
+use num_traits::FromPrimitive;
 use numpy::{IntoPyArray, PyArray1};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::PyNativeType;
-use std::sync::Arc;
 
 #[pyclass(dict)]
 pub struct BaguaSingleCommunicatorPy {
@@ -47,12 +49,21 @@ impl BaguaSingleCommunicatorPy {
         self.inner.device_id()
     }
 
-    pub fn allreduce(&self, tensor: &mut BaguaTensorPy) {
-        self.inner.allreduce(&mut tensor.inner)
+    pub fn allreduce(&self, tensor: &mut BaguaTensorPy, op: u8) {
+        self.inner
+            .allreduce(&mut tensor.inner, BaguaReductionOp::from_u8(op).unwrap())
     }
 
     pub fn broadcast(&self, tensor: &mut BaguaTensorPy, root_rank: i32) {
         self.inner.broadcast(&mut tensor.inner, root_rank)
+    }
+
+    pub fn reduce(&self, tensor: &mut BaguaTensorPy, root_rank: i32, op: u8) {
+        self.inner.reduce(
+            &mut tensor.inner,
+            root_rank,
+            BaguaReductionOp::from_u8(op).unwrap(),
+        )
     }
 
     pub fn send(&self, tensor: &mut BaguaTensorPy, peer_rank: i32) {
@@ -68,6 +79,34 @@ impl BaguaSingleCommunicatorPy {
             .alltoall(&mut send_tensor.inner, &mut recv_tensor.inner)
     }
 
+    pub fn alltoall_v(
+        &self,
+        send_tensor: &mut BaguaTensorPy,
+        send_counts: Vec<usize>,
+        send_displs: Vec<usize>,
+        recv_tensor: &mut BaguaTensorPy,
+        recv_counts: Vec<usize>,
+        recv_displs: Vec<usize>,
+    ) {
+        self.inner.alltoall_v(
+            &mut send_tensor.inner,
+            &send_counts,
+            &send_displs,
+            &mut recv_tensor.inner,
+            &recv_counts,
+            &recv_displs,
+        )
+    }
+
+    pub fn allgather(&self, send_tensor: &mut BaguaTensorPy, recv_tensor: &mut BaguaTensorPy) {
+        self.inner
+            .allgather(&mut send_tensor.inner, &mut recv_tensor.inner)
+    }
+
+    pub fn barrier(&self) {
+        self.inner.barrier()
+    }
+
     #[staticmethod]
     pub fn generate_nccl_unique_id_str() -> String {
         BaguaSingleCommunicator::generate_nccl_unique_id_str()
@@ -81,17 +120,49 @@ pub struct BaguaTensorPy {
 
 #[pymethods]
 impl BaguaTensorPy {
+    // #[new]
+    // pub fn new(
+    //     ptr: u64,
+    //     num_elem: usize,
+    //     num_elem_allocated: usize,
+    //     dtype: &str,
+    //     device_id: usize,
+    // ) -> Self {
+    //     Self {
+    //         inner: BaguaTensor::new(ptr, num_elem, num_elem_allocated, dtype, device_id),
+    //     }
+    // }
+
     #[new]
-    pub fn new(
-        ptr: u64,
-        num_elem: usize,
-        num_elem_allocated: usize,
-        dtype: &str,
-        device_id: usize,
-    ) -> Self {
-        Self {
-            inner: BaguaTensor::new(ptr, num_elem, num_elem_allocated, dtype, device_id),
-        }
+    pub fn new(torch_tensor: &PyAny, name: String) -> PyResult<Self> {
+        // TODO: sanity check
+        let dtype = torch_tensor
+            .getattr("dtype")
+            .expect("must pass valid torch tensor")
+            .repr()?
+            .to_string();
+        let bagua_dtype = match dtype.as_str() {
+            "torch.float32" => BaguaTensorDtype::F32,
+            "torch.float16" => BaguaTensorDtype::F16,
+            "torch.int64" => BaguaTensorDtype::I64,
+            "torch.uint8" => BaguaTensorDtype::U8,
+            _ => {
+                return Err(PyRuntimeError::new_err(format!(
+                    "unsupported tensor dtype {}",
+                    dtype
+                )))
+            }
+        };
+        Ok(Self {
+            inner: BaguaTensor::new_from_torch(
+                name,
+                torch_tensor
+                    .getattr("_cdata")
+                    .expect("must pass valid torch tensor")
+                    .extract()?,
+                bagua_dtype,
+            )?,
+        })
     }
 
     pub fn compress(&self, method: &str, n_chunks: usize, target_chunk: i32) -> Self {
@@ -102,11 +173,11 @@ impl BaguaTensorPy {
 
     pub fn to_numpy_f32<'py>(self_: PyRef<'py, Self>) -> pyo3::Py<PyArray1<f32>> {
         let inner = self_.inner.inner.read();
-        assert_eq!(inner.raw.dtype, BaguaTensorDtype::F32);
-        let mut array = ndarray::Array1::from_elem((inner.raw.num_elem,), 0f32);
+        assert_eq!(inner.raw.dtype(), BaguaTensorDtype::F32);
+        let mut array = ndarray::Array1::from_elem((inner.raw.num_elements(),), 0f32);
         let array_ptr = array.as_mut_ptr();
-        let device_ptr = inner.raw.ptr;
-        let num_bytes = inner.raw.num_elem as i32 * inner.raw.dtype.bytes() as i32;
+        let device_ptr = inner.raw.data_ptr();
+        let num_bytes = inner.raw.num_elements() as i32 * inner.raw.dtype().bytes() as i32;
         unsafe {
             bagua_core_internal::cuda_utils::cuda_memcpy_device_to_host_sync(
                 array_ptr as _,
@@ -119,11 +190,11 @@ impl BaguaTensorPy {
 
     pub fn to_numpy_u8<'py>(self_: PyRef<'py, Self>) -> pyo3::Py<PyArray1<u8>> {
         let inner = self_.inner.inner.read();
-        assert_eq!(inner.raw.dtype, BaguaTensorDtype::U8);
-        let mut array = ndarray::Array1::from_elem((inner.raw.num_elem,), 0u8);
+        assert_eq!(inner.raw.dtype(), BaguaTensorDtype::U8);
+        let mut array = ndarray::Array1::from_elem((inner.raw.num_elements(),), 0u8);
         let array_ptr = array.as_mut_ptr();
-        let device_ptr = inner.raw.ptr;
-        let num_bytes = inner.raw.num_elem as i32 * inner.raw.dtype.bytes() as i32;
+        let device_ptr = inner.raw.data_ptr();
+        let num_bytes = inner.raw.num_elements() as i32 * inner.raw.dtype().bytes() as i32;
         unsafe {
             bagua_core_internal::cuda_utils::cuda_memcpy_device_to_host_sync(
                 array_ptr as _,
@@ -139,28 +210,24 @@ impl BaguaTensorPy {
             .decompress_from(method, n_chunks, &compressed_buffer.inner);
     }
 
-    pub fn ptr(&self) -> u64 {
-        self.inner.ptr()
+    pub fn data_ptr(&self) -> u64 {
+        self.inner.data_ptr()
     }
 
-    pub fn id(&self) -> u64 {
-        self.inner.id()
+    pub fn device_id(&self) -> usize {
+        self.inner.device_id()
     }
 
-    pub fn num_elem(&self) -> usize {
-        self.inner.num_elem()
+    pub fn num_elements(&self) -> usize {
+        self.inner.num_elements()
     }
 
-    pub fn num_elem_allocated(&self) -> usize {
-        self.inner.num_elem_allocated()
+    pub fn num_elements_allocated(&self) -> usize {
+        self.inner.num_elements_allocated()
     }
 
     pub fn dtype(&self) -> String {
         self.inner.dtype()
-    }
-
-    pub fn reset_ptr(&mut self, ptr: u64) {
-        self.inner.reset_ptr(ptr)
     }
 }
 
@@ -179,24 +246,34 @@ impl BaguaCommBackendPy {
     }
 
     /// calling a second time will overwrite previous buckets
-    pub fn register_ordered_buckets(&mut self, buckets: Vec<PyRef<BaguaBucketPy>>) -> PyResult<()> {
+    pub fn register_ordered_buckets(
+        &mut self,
+        buckets: Vec<PyRef<BaguaBucketPy>>,
+        py: Python,
+    ) -> PyResult<()> {
         let mut buckets_inner = Vec::with_capacity(buckets.len());
         for b in buckets.iter() {
             buckets_inner.push(&b.inner)
         }
-        self.inner
-            .register_ordered_buckets(buckets_inner.as_slice())
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
+        py.allow_threads(|| {
+            self.inner
+                .register_ordered_buckets(buckets_inner.as_slice())
+        })
+        .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
     pub fn mark_communication_ready(
         &mut self,
         tensor: PyRef<BaguaTensorPy>,
         ready_cuda_event_ptr: u64,
+        py: Python,
     ) -> PyResult<()> {
-        self.inner
-            .mark_communication_ready(&tensor.inner, ready_cuda_event_ptr)
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
+        let inner = &tensor.inner;
+        py.allow_threads(|| {
+            self.inner
+                .mark_communication_ready(inner, ready_cuda_event_ptr)
+        })
+        .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
     pub fn wait_pending_comm_ops(&self, py: Python) -> PyResult<usize> {
@@ -204,15 +281,13 @@ impl BaguaCommBackendPy {
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
-    pub fn start_upload_telemetry(&self, skip: bool) -> PyResult<()> {
-        self.inner
-            .start_upload_telemetry(skip)
+    pub fn start_upload_telemetry(&self, skip: bool, py: Python) -> PyResult<()> {
+        py.allow_threads(|| self.inner.start_upload_telemetry(skip))
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
-    pub fn execute_post_backward_comm_ops(&self) -> PyResult<usize> {
-        self.inner
-            .execute_post_backward_comm_ops()
+    pub fn execute_post_backward_comm_ops(&self, py: Python) -> PyResult<usize> {
+        py.allow_threads(|| self.inner.execute_post_backward_comm_ops())
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
@@ -230,19 +305,13 @@ pub struct BaguaBucketPy {
 #[pymethods]
 impl BaguaBucketPy {
     #[new]
-    #[args(align_bytes = "0")]
-    pub fn new(
-        name: &str,
-        tensors: Vec<PyRef<BaguaTensorPy>>,
-        inplace: bool,
-        align_bytes: usize,
-    ) -> PyResult<Self> {
+    pub fn new(name: &str, tensors: Vec<PyRef<BaguaTensorPy>>) -> PyResult<Self> {
         let mut tensors_inner = Vec::with_capacity(tensors.len());
         for t in tensors.iter() {
             tensors_inner.push(&t.inner)
         }
         Ok(Self {
-            inner: BaguaBucket::new(tensors_inner.as_slice(), name, inplace, align_bytes)
+            inner: BaguaBucket::new(tensors_inner.as_slice(), name)
                 .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))?,
         })
     }
@@ -293,6 +362,9 @@ impl BaguaBucketPy {
         peer_selection_mode: String,
         communication_interval: usize,
         compression: Option<String>,
+        weight: Option<PyRef<BaguaTensorPy>>,
+        left_peer_weight: Option<PyRef<BaguaTensorPy>>,
+        right_peer_weight: Option<PyRef<BaguaTensorPy>>,
     ) -> PyResult<()> {
         self.inner.append_decentralized_synchronous_op(
             communicator_internode.map(|x| &x.inner),
@@ -301,6 +373,9 @@ impl BaguaBucketPy {
             peer_selection_mode,
             communication_interval,
             compression,
+            weight.map(|x| (*x).inner.clone()),
+            left_peer_weight.map(|x| (*x).inner.clone()),
+            right_peer_weight.map(|x| (*x).inner.clone()),
         );
         Ok(())
     }
@@ -326,6 +401,9 @@ impl BaguaBucketPy {
 
 #[pymodule]
 fn bagua_core(_py: Python, m: &PyModule) -> PyResult<()> {
+    if std::env::var("LOG_LEVEL").is_err() {
+        std::env::set_var("LOG_LEVEL", "WARN");
+    }
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_env("LOG_LEVEL"))
         .init();

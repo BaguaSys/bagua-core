@@ -1,6 +1,6 @@
 on: push
 
-name: Cargo check
+name: check package install
 
 jobs:
   check:
@@ -8,5 +8,7 @@ jobs:
     container: ikzk/bagua-ci:latest
     steps:
       - uses: actions/checkout@v2
+        with:
+          submodules: recursive
       - run: rustup default stable
-      - run: cargo check
+      - run: pip install .
