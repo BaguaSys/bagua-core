@@ -104,7 +104,7 @@ pub struct BaguaBackendForKAI {
     pub gpu_setting: Vec<usize>,
     pub bagua_backends: Vec<BaguaCommBackend>,
     pub communicators: Vec<BaguaSingleCommunicator>,
-    pub registered_tensors: Vec<NamedBaguaTensor>,
+    pub registered_tensors: Vec<BaguaTensor>,
 }
 
 impl BaguaBackendForKAI {
@@ -157,7 +157,7 @@ impl BaguaBackendForKAI {
             .collect();
 
         let telemetry = BaguaCommCoreTelemetry::new(
-            format!("{}:{}", autotune_service_addr, autotune_service_port).to_string(),
+            format!("{}:{}", autotune_service_addr, autotune_service_port),
         );
         let req = RegisterTensorsRequest {
             tensor_list: tensors
@@ -177,14 +177,14 @@ impl BaguaBackendForKAI {
             for td_tensor in td_bucket.iter() {
                 tensors_ref.extend(
                     tensors
-                        .mut_iter()
+                        .iter_mut()
                         .filter(|&t| t.name() == td_tensor.name)
                         .collect(),
                 );
             }
             buckets.push(BaguaBucket::new(
                 tensors_ref.as_slice(),
-                format!("bucket-{}", i).to_string(),
+                format!("bucket-{}", i),
             ));
         }
         let buckets_ref = Vec::new();
@@ -202,6 +202,7 @@ impl BaguaBackendForKAI {
             gpu_setting: gpu_setting.clone(),
             bagua_backends: backends,
             communicators: init_process_group(ranks, nranks, gpu_setting, master_addr, master_port),
+            registered_tensors: tensors,
         }
     }
 }
@@ -260,13 +261,11 @@ fn main() {
                             CUDACHECK(cudaMalloc(&ptr, bytes));
                             float x = device_id;
                             CUDACHECK(cudaMemcpy((void*)&x, ptr, 4, cudaMemcpyHostToDevice));
+
+                            return ptr;
                         })
                     };
                     tensors.push(BaguaTensor::new(ptr, 1, 1, "f32", *device_id));
-                }
-                let mut tensors_ref = Vec::new();
-                for t in &tensors {
-                    tensors_ref.push(t);
                 }
 
                 let backend4kai = BaguaBackendForKAI::new(
@@ -277,7 +276,7 @@ fn main() {
                     master_port,
                     autotune_service_addr.clone(),
                     autotune_service_port,
-                    tensors_ref.as_slice(),
+                    tensors,
                 );
                 thread::sleep(time::Duration::from_secs(5));
                 std::process::exit(0);
