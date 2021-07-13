@@ -64,8 +64,8 @@ impl KvStore for KvStoreService {
 }
 
 use bagua::kv_store::kv_store_client::KvStoreClient;
-use tokio::runtime::Builder;
 use std::io;
+use tokio::runtime::Builder;
 
 type StdError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -124,8 +124,8 @@ impl BaguaKvStore {
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
-    use tokio::runtime::Runtime;
     use bagua::kv_store::kv_store_server::KvStoreServer;
+    use tokio::runtime::Runtime;
 
     #[test]
     fn test_kvstore_service() {
@@ -163,11 +163,11 @@ mod tests {
     //     let service_fut = tonic::transport::Server::builder()
     //         .add_service(KvStoreServer::new(kv_store))
     //         .serve(service_addr);
-    
+
     //     std::thread::spawn(move || {
     //         let one_sec = std::time::Duration::from_secs(1);
     //         std::thread::sleep(one_sec);
-    
+
     //         let mut kv = BaguaKvStore::open("http://[::1]:50051").unwrap();
     //         kv.set("key1".into(), "123".as_bytes()).unwrap();
     //         assert_eq!(kv.get("key1".into()).unwrap(), "123".as_bytes().to_vec());
@@ -175,7 +175,7 @@ mod tests {
     //         kv.del("key1".into()).unwrap_err();
     //         kv.get("key1".into()).unwrap_err();
     //     });
-    
+
     //     rt.block_on(service_fut)
     //         .expect("failed to successfully run the future on RunTime");
     // }
