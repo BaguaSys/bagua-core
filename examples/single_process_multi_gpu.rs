@@ -179,7 +179,7 @@ impl BaguaBackendForKAI {
                 let t: Vec<&BaguaTensor> = tensors
                     .iter_mut()
                     .filter(|&t| t.name() == td_tensor.name)
-                    .collect(),
+                    .collect();
                 tensors_ref.extend(t);
             }
             buckets
