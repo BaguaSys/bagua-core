@@ -182,10 +182,8 @@ impl BaguaBackendForKAI {
                     .collect(),
                 tensors_ref.extend(t);
             }
-            buckets.push(BaguaBucket::new(
-                tensors_ref.as_slice(),
-                &*format!("bucket-{}", i),
-            ).unwrap());
+            buckets
+                .push(BaguaBucket::new(tensors_ref.as_slice(), &*format!("bucket-{}", i)).unwrap());
         }
         let buckets_ref = Vec::new();
         for bucket in &buckets {
