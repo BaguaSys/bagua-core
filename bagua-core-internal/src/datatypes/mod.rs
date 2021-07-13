@@ -741,7 +741,7 @@ impl BaguaTensor {
         name: String,
         device_id: usize,
         data_ptr: u64,
-        num_elem: u64,
+        num_elem: usize,
         dtype: BaguaTensorDtype,
         ready_cuda_event_ptr: u64,
     ) -> Self {
