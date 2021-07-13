@@ -249,7 +249,7 @@ fn main() {
             ForkResult::Child => {
                 println!("gpu_setting={:?}", gpu_setting);
                 let mut tensors = Vec::new();
-                for device_id in &gpu_setting {
+                for device_id in gpu_setting.clone() {
                     let ptr = unsafe {
                         println!("device_id={}", device_id);
                         cpp::cpp!([device_id as "size_t"] -> u64 as "void*"
@@ -269,7 +269,7 @@ fn main() {
                     };
                     tensors.push(BaguaTensor::new(
                         "tensor-1".to_string(),
-                        *device_id,
+                        device_id,
                         ptr,
                         1,
                         BaguaTensorDtype::F32,
