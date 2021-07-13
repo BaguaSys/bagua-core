@@ -177,7 +177,7 @@ impl BaguaBackendForKAI {
             let tensors_ref = Vec::<&BaguaTensor>::new();
             for td_tensor in td_bucket.iter() {
                 let t: Vec<&BaguaTensor> = tensors
-                    .iter_mut()
+                    .iter()
                     .filter(|&t| t.name() == td_tensor.name)
                     .collect();
                 tensors_ref.extend(t);
