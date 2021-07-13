@@ -176,12 +176,11 @@ impl BaguaBackendForKAI {
         for (i, td_bucket) in rsp.recommended_hyperparameters.buckets.iter().enumerate() {
             let tensors_ref = Vec::<&BaguaTensor>::new();
             for td_tensor in td_bucket.iter() {
-                tensors_ref.extend(
-                    tensors
-                        .iter_mut()
-                        .filter(|&t| t.name() == td_tensor.name)
-                        .collect(),
-                );
+                let t: Vec<&BaguaTensor> = tensors
+                    .iter_mut()
+                    .filter(|&t| t.name() == td_tensor.name)
+                    .collect(),
+                tensors_ref.extend(t);
             }
             buckets.push(BaguaBucket::new(
                 tensors_ref.as_slice(),
