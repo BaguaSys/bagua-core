@@ -140,22 +140,23 @@ impl BaguaBackendForKai {
         } else {
             None
         };
+        let backends = gpu_setting
+            .clone()
+            .iter()
+            .map(|&device_id| {
+                BaguaCommBackend::new(
+                    BaguaBackendForKai::BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP,
+                    device_id,
+                )
+            })
+            .collect();
 
         Self {
             kv_store: kv_store,
             ranks: ranks.clone(),
             nranks: nranks,
             gpu_setting: gpu_setting.clone(),
-            bagua_backends: gpu_setting
-                .clone()
-                .iter()
-                .map(|&device_id| {
-                    BaguaCommBackend::new(
-                        BaguaBackendForKai::BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP,
-                        device_id,
-                    )
-                })
-                .collect(),
+            bagua_backends: backends,
             communicators: init_process_group(ranks, nranks, gpu_setting, master_addr, master_port),
         }
     }
