@@ -6,6 +6,7 @@ use std::ffi::CString;
 use std::iter;
 
 use bagua_core_internal::communicators::BaguaSingleCommunicator;
+<<<<<<< HEAD
 use bagua_core_internal::datatypes::BaguaBucket;
 use bagua_core_internal::datatypes::BaguaTensor;
 use bagua_core_internal::telemetry::{
@@ -15,6 +16,10 @@ use bagua_core_internal::BaguaCommBackend;
 use bagua_core_internal::BaguaCommOpConfig;
 use libc::c_char;
 use std::{slice, str};
+=======
+use std::ffi::CStr;
+use std::os::raw::c_char;
+>>>>>>> ff5e9880bd7c7799726264b1ad195e71d1060637
 
 pub struct BaguaSingleCommunicatorC {
     inner: BaguaSingleCommunicator,

@@ -1,4 +1,5 @@
 #![allow(clippy::needless_return)]
+#![recursion_limit = "512"] // workaround recursion limit reached while expanding $crate::__cpp_internal!
 #[macro_use]
 extern crate shadow_rs;
 
@@ -10,6 +11,7 @@ pub mod events;
 pub mod kernels;
 pub mod resource_pool;
 pub mod telemetry;
+mod torch_ffi;
 
 use crate::comm_ops::CommOpTrait;
 use crate::telemetry::{SCHEDULED_THREAD_POOL, TELEMETRY};
@@ -25,6 +27,7 @@ use std::time::Duration;
 use thiserror::Error;
 
 cpp! {{
+#include <Al.hpp>
 #include <nccl.h>
 #include <stdio.h>
 #include <iostream>
@@ -55,6 +58,7 @@ pub enum BaguaCoreError {
 
 #[derive(Debug)]
 pub struct BaguaScheduledCommOp {
+    pub name: String,
     pub bucket: Arc<BaguaBucket>,
     pub ops: Vec<Arc<dyn CommOpTrait + Send + Sync>>,
     pub event_channel: BaguaEventChannel,
@@ -77,7 +81,7 @@ impl BaguaCommOpChannels {
         let (sender, receiver) = flume::bounded(cap);
         let (ev_sender, ev_receiver) = flume::unbounded();
         let (post_backward_channel_sender, post_backward_channel_receiver) = flume::bounded(cap);
-        let (post_backward_ev_sender, post_backwar_ev_receiver) = flume::unbounded();
+        let (post_backward_ev_sender, post_backward_ev_receiver) = flume::unbounded();
 
         Self {
             schedule_channel_sender: sender,
@@ -87,7 +91,7 @@ impl BaguaCommOpChannels {
             not_waited_post_backward_events_sender: post_backward_ev_sender,
             not_waited_events_sender: ev_sender,
             not_waited_events_receiver: ev_receiver,
-            not_waited_post_backward_events_receiver: post_backwar_ev_receiver,
+            not_waited_post_backward_events_receiver: post_backward_ev_receiver,
         }
     }
 }
@@ -118,7 +122,7 @@ pub fn show_version() {
 pub struct BaguaCommBackend {
     ordered_buckets: VecDeque<Arc<BaguaBucket>>,
     /// <tensor_id, bagua_bucket>
-    bucket_mapping: HashMap<u64, Arc<BaguaBucket>>,
+    bucket_mapping: HashMap<String, Arc<BaguaBucket>>,
     channels: Arc<BaguaCommOpChannels>,
     managed_ptrs: HashSet<u64>,
     comm_worker: std::thread::JoinHandle<()>,
@@ -127,10 +131,11 @@ pub struct BaguaCommBackend {
 
 impl BaguaCommBackend {
     pub fn schedule_comm(&self, bucket: Arc<BaguaBucket>) -> Result<(), BaguaCoreError> {
-        let event_channel = BaguaEventChannel::default();
+        let event_channel = BaguaEventChannel::new("comm_op");
         self.channels
             .schedule_channel_sender
             .send(BaguaScheduledCommOp {
+                name: format!("comm op for bucket {}", bucket.name),
                 ops: {
                     let guard = bucket.inner.lock();
                     guard.comm_ops.clone()
@@ -194,20 +199,37 @@ impl BaguaCommBackend {
                         .recv()
                         .expect("cannot receive new comm op");
                     tracing::debug!(
-                        "worker received scheduled communication operation {:?}",
-                        comm_op
+                        "worker received scheduled communication operation {}",
+                        comm_op.name
                     );
-                    monitor_op_start_channel_sender.send(comm_op.bucket.clone());
+                    if let Err(e) = monitor_op_start_channel_sender.send(comm_op.bucket.clone()) {
+                        tracing::error!("{:?}", e);
+                    }
+                    tracing::debug!(
+                        "executing communication op `{}` on bucket `{}`, tensors [{}]",
+                        comm_op.name,
+                        comm_op.bucket.name,
+                        display_utils::join(
+                            comm_op.bucket.inner.lock().tensors.iter().map(|x| x
+                                .inner
+                                .read()
+                                .name
+                                .clone()),
+                            ","
+                        )
+                    );
                     for op in &comm_op.ops {
                         op.execute_background_communication(
                             comm_op.bucket.clone(),
                             &channels_clone,
                         );
                     }
-                    tracing::debug!("comm op executed: {:?}", comm_op);
+                    tracing::debug!("comm op executed: {}", comm_op.name);
                     comm_op.event_channel.finish();
-                    tracing::debug!("comm op marked finished: {:?}", comm_op);
-                    monitor_op_finish_channel_sender.send(());
+                    tracing::debug!("comm op marked finished: {}", comm_op.name);
+                    monitor_op_finish_channel_sender
+                        .send(())
+                        .expect("cannot send op finish signal");
                 }
             }),
             comm_monitor: std::thread::spawn(move || loop {
@@ -237,17 +259,19 @@ impl BaguaCommBackend {
             let bucket = Arc::new((*bucket).clone());
             self.ordered_buckets.push_back(bucket.clone());
             for tensor in &bucket.inner.lock().tensors {
-                if self.bucket_mapping.contains_key(&tensor.id)
-                    || self.managed_ptrs.contains(&tensor.inner.read().raw.ptr)
+                if self.bucket_mapping.contains_key(&tensor.name())
+                    || self
+                        .managed_ptrs
+                        .contains(&tensor.inner.read().raw.data_ptr())
                 {
                     return Err(BaguaCoreError::TensorError(format!(
-                        "duplicated tensor detected, id {}, ptr {}",
-                        &tensor.id,
-                        &tensor.inner.read().raw.ptr
+                        "duplicated tensor detected, name {}, ptr {}",
+                        &tensor.name(),
+                        &tensor.inner.read().raw.data_ptr()
                     )));
                 }
-                self.bucket_mapping.insert(tensor.id, bucket.clone());
-                self.managed_ptrs.insert(tensor.inner.read().raw.ptr);
+                self.bucket_mapping.insert(tensor.name(), bucket.clone());
+                self.managed_ptrs.insert(tensor.inner.read().raw.data_ptr());
             }
         }
         Ok(())
@@ -261,7 +285,7 @@ impl BaguaCommBackend {
         tensor.mark_comm_ready(ready_cuda_event_ptr);
         while self.should_schedule()? {
             let bucket = self.ordered_buckets.pop_front().unwrap();
-            tracing::debug!("bucket {:?} ready for communication", bucket);
+            tracing::debug!("bucket {} ready for communication", bucket.name);
             bucket.reset_comm_ready();
             let bucket_clone = bucket.clone();
             self.ordered_buckets.push_back(bucket);
@@ -278,9 +302,9 @@ impl BaguaCommBackend {
             let ev = self.channels.not_waited_events_receiver.try_recv();
             match ev {
                 Ok(x) => {
-                    tracing::debug!("waiting for comm ops event {:?}", x);
+                    tracing::debug!("waiting for comm ops event `{}`", x.name);
                     x.wait();
-                    tracing::debug!("comm ops event {:?} finished", x);
+                    tracing::debug!("comm ops event `{}` finished", x.name);
                     num_ev += 1;
                 }
                 Err(_) => return Ok(num_ev),
