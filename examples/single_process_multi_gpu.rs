@@ -152,7 +152,7 @@ impl BaguaBackendForKAI {
                 BaguaCommBackend::new(
                     BaguaBackendForKAI::BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP,
                     device_id,
-                ).unwrap()
+                )
             })
             .collect();
 
@@ -186,7 +186,7 @@ impl BaguaBackendForKAI {
             buckets.push(BaguaBucket::new(
                 tensors_ref.as_slice(),
                 &*format!("bucket-{}", i),
-            ));
+            ).unwrap());
         }
         let buckets_ref = Vec::new();
         for bucket in &buckets {
