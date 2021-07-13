@@ -262,7 +262,7 @@ fn main() {
                             void* ptr = 0;
                             CUDACHECK(cudaMalloc(&ptr, bytes));
                             float x = device_id;
-                            CUDACHECK(cudaMemcpy((void*)&x, ptr, 4, cudaMemcpyHostToDevice));
+                            CUDACHECK(cudaMemcpy(ptr, (void*)&x, 4, cudaMemcpyHostToDevice));
 
                             return ptr;
                         })
