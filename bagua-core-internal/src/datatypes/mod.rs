@@ -748,7 +748,7 @@ impl BaguaTensor {
         Self {
             inner: Arc::new(RwLock::new(BaguaTensorInner {
                 name,
-                raw: Box::new(BaguaTensorRaw{
+                raw: Box::new(BaguaTensorRaw {
                     ptr: data_ptr,
                     num_elem_allocated: num_elem,
                     dtype: dtype,
@@ -758,7 +758,7 @@ impl BaguaTensor {
                 }),
                 ready_for_comm: false,
                 ready_cuda_event_ptr: ready_cuda_event_ptr,
-            }))
+            })),
         }
     }
 
