@@ -169,6 +169,7 @@ impl BaguaSingleBackendForKAI {
                 })
                 .collect(),
         };
+        println!("req={:?}", req);
         let rsp = telemetry.register_tensors(req).unwrap();
         let mut buckets = Vec::new();
         println!("buckets={:?}", rsp.recommended_hyperparameters.buckets);
