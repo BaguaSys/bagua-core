@@ -232,9 +232,9 @@ fn main() {
         // build but do not install the subscriber.
         .finish();
 
-    tracing::collector::with_default(collector, || {
-        info!("This will be logged to stdout");
-    });
+    // tracing::collector::with_default(collector, || {
+    //     info!("This will be logged to stdout");
+    // });
 
     let nranks = 8;
     let mut master_addr = "127.0.0.1".to_string();
