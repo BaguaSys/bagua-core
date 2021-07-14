@@ -201,9 +201,11 @@ impl BaguaSingleBackendForKAI {
                 None,
             );
             let rank_clone = self.rank;
-            bucket.append_custom_op(Arc::new(|_x: Arc<BaguaBucket>, _y: &BaguaCommOpChannels| {
-                println!("rank_clone={}", rank_clone);
-            }));
+            bucket.append_custom_op(Arc::new(
+                |_x: Arc<BaguaBucket>, _y: &BaguaCommOpChannels| {
+                    println!("rank_clone={}", rank_clone);
+                },
+            ));
         }
 
         self.registered_tensors = tensors;

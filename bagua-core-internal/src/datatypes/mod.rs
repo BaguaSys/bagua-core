@@ -1181,7 +1181,10 @@ impl BaguaBucket {
         self.inner.lock().comm_ops.push(comm_op);
     }
 
-    pub fn append_custom_op(&mut self, op: Arc<dyn Fn(Arc<BaguaBucket>, &BaguaCommOpChannels) -> ()>) {
+    pub fn append_custom_op(
+        &mut self,
+        op: Arc<dyn Fn(Arc<BaguaBucket>, &BaguaCommOpChannels) -> ()>,
+    ) {
         let comm_op: Arc<dyn CommOpTrait + Send + Sync> = Arc::new(CustomOp { callable: op });
         self.inner.lock().comm_ops.push(comm_op);
     }
