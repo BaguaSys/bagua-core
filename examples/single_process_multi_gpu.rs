@@ -136,12 +136,12 @@ fn init_process_group(
 
     let mut comm_init_threads = Vec::new();
     BaguaSingleCommunicator::new(
-        gpu_id as usize,
-        nranks_clone,
-        gpu_id as usize,
+        device_id,
+        nranks,
+        device_id,
         0,
-        std::str::from_utf8(&nccl_unique_id_clone).unwrap(),
-    );
+        std::str::from_utf8(&nccl_unique_id).unwrap(),
+    )
 }
 
 pub struct BaguaSingleBackendForKAI {
@@ -194,7 +194,7 @@ impl BaguaSingleBackendForKAI {
             None
         };
         let mut backend = BaguaCommBackend::new(
-            BaguaBackendForKAI::BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP,
+            BaguaSingleBackendForKAI::BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP,
             device_id,
         );
 
@@ -253,16 +253,14 @@ impl BaguaSingleBackendForKAI {
         for bucket in &buckets {
             buckets_ref.push(bucket);
         }
-        for backend in &mut backends {
-            backend.register_ordered_buckets(buckets_ref.as_slice());
-        }
+        self.backend.register_ordered_buckets(buckets_ref.as_slice());
         for bucket in buckets.iter_mut() {
             bucket.append_centralized_synchronous_op(
                 Some(&self.comm), Some(&self.comm), false, true, false, None);
         }
 
-        self.registered_tensors = tensors
-        self.registered_buckets = buckets
+        self.registered_tensors = tensors;
+        self.registered_buckets = buckets;
     }
 }
 
@@ -474,13 +472,13 @@ fn main() {
                 for (i, device_id) in gpu_setting.iter().enumerate() {
                     workers.push(std::thread::spawn(move || {
                         let backend4kai = BaguaSingleBackendForKAI::new(
-                            device_id,
+                            *device_id,
                             nranks,
-                            device_id,
+                            *device_id,
                             master_addr.clone(),
                             master_port,
                         );
-                        backend4kai.register_tensors("default_model", vec![tensors[i].clone()], autotune_service_addr.clone(), autotune_service_port);
+                        backend4kai.register_tensors("default_model".to_string(), vec![tensors[i].clone()], autotune_service_addr.clone(), autotune_service_port);
                         return backend4kai;
                     }));
                 }
