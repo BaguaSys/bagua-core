@@ -134,7 +134,6 @@ fn init_process_group(
         nccl_unique_id
     };
 
-    let mut comm_init_threads = Vec::new();
     BaguaSingleCommunicator::new(
         device_id,
         nranks,
