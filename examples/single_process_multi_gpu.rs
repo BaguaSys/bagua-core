@@ -318,10 +318,10 @@ fn main() {
                         backend4kai.wait_pending_comm_ops();
                         let ptr = t.inner.read().raw.data_ptr();
                         unsafe {
-                            cpp::cpp!([device_id as "size_t", ptr as "void*"]
+                            cpp::cpp!([device_id_clone as "size_t", ptr as "void*"]
                             {
                                 size_t bytes = 4;
-                                CUDACHECK(cudaSetDevice(device_id));
+                                CUDACHECK(cudaSetDevice(device_id_clone));
                                 float x = 0.;
                                 CUDACHECK(cudaMemcpy((void*)&x, ptr, bytes, cudaMemcpyDeviceToHost));
                                 printf("avg=%f\n", x);
