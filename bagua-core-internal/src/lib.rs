@@ -154,7 +154,6 @@ impl BaguaCommBackend {
     }
 
     fn should_schedule(&self) -> Result<bool, BaguaCoreError> {
-        println!("self.ordered_buckets.len={}", self.ordered_buckets.len());
         return match self.ordered_buckets.front() {
             None => Err(BaguaCoreError::BackendError(
                 "ordered buckets not yet set in comm backend".into(),
