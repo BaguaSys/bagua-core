@@ -11,7 +11,6 @@ pub struct CustomOp {
 impl fmt::Debug for CustomOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("CustomOp")
-            .field("callable", format!("{:p}", &self.callable))
             .finish()
     }
 }
