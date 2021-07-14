@@ -287,7 +287,7 @@ impl BaguaCommBackend {
         tensor.mark_comm_ready(ready_cuda_event_ptr);
         while self.should_schedule()? {
             let bucket = self.ordered_buckets.pop_front().unwrap();
-            tracing::debug!("bucket {} ready for communication", bucket.name);
+            println!("bucket {} ready for communication", bucket.name);
             bucket.reset_comm_ready();
             let bucket_clone = bucket.clone();
             self.ordered_buckets.push_back(bucket);
