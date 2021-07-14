@@ -379,6 +379,25 @@ impl BaguaBucketPy {
         );
         Ok(())
     }
+    
+    #[args(hierarchical = "false", communication_interval = "1")]
+    pub fn append_decentralized_synchronous_writeback_op(
+        &mut self,
+        communicator_internode: Option<&BaguaSingleCommunicatorPy>,
+        communicator_intranode: Option<&BaguaSingleCommunicatorPy>,
+        hierarchical: bool,
+        communication_interval: usize,
+        peer_weight: PyRef<BaguaTensorPy>,
+    ) -> PyResult<()> {
+        self.inner.append_decentralized_synchronous_writeback_op(
+            communicator_internode.map(|x| &x.inner),
+            communicator_intranode.map(|x| &x.inner),
+            hierarchical,
+            communication_interval,
+            (*peer_weight).inner.clone(),
+        );
+        Ok(())
+    }
 
     pub fn print_ops(&self) -> PyResult<()> {
         println!("{:?}", self.inner.inner.lock().comm_ops);

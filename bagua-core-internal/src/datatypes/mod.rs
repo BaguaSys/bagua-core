@@ -1,7 +1,7 @@
 use crate::comm_ops::centralized_full_precision_synchronous::CentralizedFullPrecisionSynchronous;
 use crate::comm_ops::centralized_low_precision_synchronous::CentralizedLowPrecisionSynchronous;
 use crate::comm_ops::decentralized_full_precision_synchronous::{
-    DecentralizedFullPrecisionSynchronous, PeerSelectionMode,
+    DecentralizedFullPrecisionSynchronous, PeerSelectionMode, DecentralizedFullPrecisionSynchronousWriteback
 };
 use crate::comm_ops::decentralized_low_precision_synchronous::DecentralizedLowPrecisionSynchronous;
 use crate::comm_ops::python_ffi_op::PythonFFIOp;
@@ -1129,6 +1129,7 @@ impl BaguaBucket {
                 },
                 step: Default::default(),
                 communication_interval,
+                peer_weight: left_peer_weight.expect("missing parameter `left_peer_weight` for full precision decentralized algorithm"),
             }),
             Some(x) => match x.as_str() {
                "MinMaxUInt8" => Arc::new(DecentralizedLowPrecisionSynchronous {
@@ -1154,6 +1155,26 @@ impl BaguaBucket {
 
             },
         };
+        self.inner.lock().comm_ops.push(comm_op);
+    }
+    
+    pub fn append_decentralized_synchronous_writeback_op(
+        &mut self,
+        communicator_internode: Option<&BaguaSingleCommunicator>,
+        communicator_intranode: Option<&BaguaSingleCommunicator>,
+        hierarchical: bool,
+        communication_interval: usize,
+        peer_weight: BaguaTensor,
+    ) {
+        let communicator =
+            BaguaCommunicator::new(communicator_internode, communicator_intranode, hierarchical)
+                .expect("cannot create communicator");
+        let comm_op: Arc<dyn CommOpTrait + Send + Sync> = Arc::new(DecentralizedFullPrecisionSynchronousWriteback {
+                communicator,
+                peer_weight,
+                step: Default::default(),
+                communication_interval,
+            });
         self.inner.lock().comm_ops.push(comm_op);
     }
 
