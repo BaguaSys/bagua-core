@@ -316,7 +316,7 @@ fn main() {
                         );
                         backend4kai.mark_tensor_ready(&t, 0);
                         backend4kai.wait_pending_comm_ops();
-                        let ptr = t.inner.read().raw.ptr;
+                        let ptr = t.inner.read().raw.data_ptr();
                         unsafe {
                             cpp::cpp!([device_id as "size_t", ptr as "void*"]
                             {
