@@ -299,7 +299,7 @@ fn main() {
                             autotune_service_addr_clone,
                             autotune_service_port,
                         );
-                        backend4kai.mark_tensor_ready(t, 0);
+                        backend4kai.mark_tensor_ready(&t, 0);
                         backend4kai.wait_pending_comm_ops();
                         return backend4kai;
                     }));
