@@ -474,27 +474,31 @@ fn main() {
                         0,
                     ));
                 }
-                let workers = Vec::new();
+                let mut workers = Vec::new();
                 for (i, device_id) in gpu_setting.iter().enumerate() {
+                    let device_id_clone = device_id.clone();
+                    let master_addr_clone = master_addr.clone();
+                    let autotune_service_addr_clone = autotune_service_addr.clone();
+                    let t = tensors[i].clone();
                     workers.push(std::thread::spawn(move || {
-                        let backend4kai = BaguaSingleBackendForKAI::new(
-                            *device_id,
+                        let mut backend4kai = BaguaSingleBackendForKAI::new(
+                            device_id_clone,
                             nranks,
-                            *device_id,
-                            master_addr.clone(),
+                            device_id_clone,
+                            master_addr_clone,
                             master_port,
                         );
                         backend4kai.register_tensors(
                             "default_model".to_string(),
-                            vec![tensors[i].clone()],
-                            autotune_service_addr.clone(),
+                            vec![t],
+                            autotune_service_addr_clone,
                             autotune_service_port,
                         );
                         return backend4kai;
                     }));
                 }
 
-                for worker in &workers {
+                for worker in workers {
                     worker.join();
                 }
                 thread::sleep(time::Duration::from_secs(5));
