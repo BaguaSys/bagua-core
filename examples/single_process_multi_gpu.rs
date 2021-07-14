@@ -18,7 +18,7 @@ use bagua_core_internal::resource_pool::CudaMemory;
 use bagua_core_internal::telemetry::{
     BaguaCommCoreTelemetry, RegisterTensorsRequest, TensorDeclaration,
 };
-use bagua_core_internal::BaguaCommBackend;
+use bagua_core_internal::{BaguaCommBackend, BaguaCommOpChannels};
 use bagua_store::{BaguaKvStore, BaguaKvStoreServer, KvStoreService};
 
 cpp! {{
@@ -200,6 +200,10 @@ impl BaguaSingleBackendForKAI {
                 false,
                 None,
             );
+            let rank_clone = self.rank;
+            bucket.append_custom_op(Arc::new(|_x: Arc<BaguaBucket>, _y: &BaguaCommOpChannels| {
+                println!("rank_clone={}", rank_clone);
+            }));
         }
 
         self.registered_tensors = tensors;
@@ -227,16 +231,6 @@ impl Drop for BaguaSingleBackendForKAI {
 }
 
 fn main() {
-    let collector = tracing_subscriber::fmt()
-        // filter spans/events with level TRACE or higher.
-        .with_max_level(Level::TRACE)
-        // build but do not install the subscriber.
-        .finish();
-
-    // tracing::collector::with_default(collector, || {
-    //     info!("This will be logged to stdout");
-    // });
-
     let nranks = 8;
     let mut master_addr = "127.0.0.1".to_string();
     let mut master_port = 8123;

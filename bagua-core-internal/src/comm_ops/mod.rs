@@ -3,6 +3,7 @@ pub mod centralized_low_precision_synchronous;
 pub mod decentralized_full_precision_synchronous;
 pub mod decentralized_low_precision_synchronous;
 pub mod python_ffi_op;
+pub mod custom_op;
 
 use crate::datatypes::BaguaBucket;
 use crate::BaguaCommOpChannels;

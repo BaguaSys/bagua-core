@@ -1181,6 +1181,11 @@ impl BaguaBucket {
         self.inner.lock().comm_ops.push(comm_op);
     }
 
+    pub fn append_custom_op(&mut self, op: Arc<dyn Fn(Arc<BaguaBucket>, &BaguaCommOpChannels) -> ()>) {
+        let comm_op: Arc<dyn CommOpTrait + Send + Sync> = Arc::new(CustomOp { callable: op });
+        self.inner.lock().comm_ops.push(comm_op);
+    }
+
     /// this function will use communicator_internode to communicate.
     /// if hierarchical = True, it will do hierarchical communicator, this requires intranode communicator on each node and inter node communicator on leader GPU. leader GPU will be the GPU whose communicator_intranode rank is 0
     pub fn append_centralized_synchronous_op(
