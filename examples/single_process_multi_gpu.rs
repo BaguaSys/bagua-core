@@ -8,6 +8,7 @@ use nix::{
 };
 use std::{thread, time};
 use tokio::runtime::Runtime;
+use tracing;
 use tracing::{info, Level};
 use tracing_subscriber;
 
