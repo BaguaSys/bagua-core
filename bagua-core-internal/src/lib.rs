@@ -154,6 +154,7 @@ impl BaguaCommBackend {
     }
 
     fn should_schedule(&self) -> Result<bool, BaguaCoreError> {
+        println!("self.ordered_buckets.len={}", self.ordered_buckets.len());
         return match self.ordered_buckets.front() {
             None => Err(BaguaCoreError::BackendError(
                 "ordered buckets not yet set in comm backend".into(),
@@ -287,7 +288,7 @@ impl BaguaCommBackend {
         tensor.mark_comm_ready(ready_cuda_event_ptr);
         while self.should_schedule()? {
             let bucket = self.ordered_buckets.pop_front().unwrap();
-            println!("bucket {} ready for communication", bucket.name);
+            tracing::debug!("bucket {} ready for communication", bucket.name);
             bucket.reset_comm_ready();
             let bucket_clone = bucket.clone();
             self.ordered_buckets.push_back(bucket);
