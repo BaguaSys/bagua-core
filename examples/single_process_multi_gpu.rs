@@ -8,6 +8,8 @@ use nix::{
 };
 use std::{thread, time};
 use tokio::runtime::Runtime;
+use tracing::{info, Level};
+use tracing_subscriber;
 
 use bagua_core_internal::communicators::{BaguaCommOpConfig, BaguaSingleCommunicator};
 use bagua_core_internal::datatypes::{BaguaBucket, BaguaTensor, BaguaTensorDtype};
@@ -185,7 +187,8 @@ impl BaguaSingleBackendForKAI {
             buckets_ref.push(bucket);
         }
         self.backend
-            .register_ordered_buckets(buckets_ref.as_slice());
+            .register_ordered_buckets(buckets_ref.as_slice())
+            .unwrap();
         for bucket in buckets.iter_mut() {
             bucket.append_centralized_synchronous_op(
                 Some(&self.comm),
@@ -222,6 +225,16 @@ impl Drop for BaguaSingleBackendForKAI {
 }
 
 fn main() {
+    let collector = tracing_subscriber::fmt()
+        // filter spans/events with level TRACE or higher.
+        .with_max_level(Level::TRACE)
+        // build but do not install the subscriber.
+        .finish();
+
+    tracing::collector::with_default(collector, || {
+        info!("This will be logged to stdout");
+    });
+
     let nranks = 8;
     let mut master_addr = "127.0.0.1".to_string();
     let mut master_port = 8123;

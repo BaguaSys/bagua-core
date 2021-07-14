@@ -522,6 +522,8 @@ dependencies = [
  "shadow-rs 0.5.25",
  "tokio",
  "tonic",
+ "tracing",
+ "tracing-subscriber",
  "which",
 ]
 
