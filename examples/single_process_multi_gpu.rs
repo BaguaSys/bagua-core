@@ -156,7 +156,6 @@ impl BaguaSingleBackendForKAI {
             autotune_service_addr, autotune_service_port
         ));
         let req = RegisterTensorsRequest {
-            // TODO @shjwudp: split new to init_process_group and register_tensors
             model_name: model_name,
             whether_to_bucket: true,
             tensor_list: tensors
@@ -165,7 +164,7 @@ impl BaguaSingleBackendForKAI {
                 .map(|t| TensorDeclaration {
                     name: t.name(),
                     num_elements: t.num_elements(),
-                    dtype: t.dtype(),
+                    dtype: t.dtype().to_lowercase(),
                 })
                 .collect(),
         };
