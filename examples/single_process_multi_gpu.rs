@@ -280,7 +280,7 @@ fn main() {
                             void* ptr = 0;
                             CUDACHECK(cudaMalloc(&ptr, bytes));
                             float x = device_id;
-                            CUDACHECK(cudaMemcpy(ptr, (void*)&x, 4, cudaMemcpyHostToDevice));
+                            CUDACHECK(cudaMemcpy(ptr, (void*)&x, bytes, cudaMemcpyHostToDevice));
 
                             return ptr;
                         })
@@ -320,13 +320,10 @@ fn main() {
                         unsafe {
                             cpp::cpp!([device_id as "size_t", ptr as "void*"]
                             {
-                                size_t bytes = 4;
                                 CUDACHECK(cudaSetDevice(device_id));
                                 float x = 0.;
-                                CUDACHECK(cudaMemcpy((void*)&x, ptr, 4, cudaMemcpyDeviceToHost));
+                                CUDACHECK(cudaMemcpy((void*)&x, ptr, bytes, cudaMemcpyDeviceToHost));
                                 printf("avg=%f\n", x);
-
-                                return ptr;
                             });
                         };
                         return backend4kai;
