@@ -50,7 +50,7 @@ impl CommOpTrait for CentralizedFullPrecisionSynchronous {
                         temp_tensor.reduce_sum_inplace(c.nranks, c.rank, c.stream_ptr);
                     }
                     tracing::debug!("start allgather");
-                    c.allgather(&temp_tensor, &mut t.raw);
+                    c.allgather2(&temp_tensor, &mut t.raw);
                     tracing::debug!("internode communication done")
                 } else {
                     tracing::debug!("start allreduce");

@@ -103,6 +103,39 @@ impl BaguaSingleCommunicatorPy {
             .allgather(&mut send_tensor.inner, &mut recv_tensor.inner)
     }
 
+    pub fn gather(
+        &self,
+        send_tensor: &mut BaguaTensorPy,
+        recv_tensor: &mut BaguaTensorPy,
+        dst: i32,
+    ) {
+        self.inner
+            .gather(&mut send_tensor.inner, &mut recv_tensor.inner, dst)
+    }
+
+    pub fn scatter(
+        &self,
+        send_tensor: &mut BaguaTensorPy,
+        recv_tensor: &mut BaguaTensorPy,
+        src: i32,
+    ) {
+        self.inner
+            .scatter(&mut send_tensor.inner, &mut recv_tensor.inner, src)
+    }
+
+    pub fn reduce_scatter(
+        &self,
+        send_tensor: &mut BaguaTensorPy,
+        recv_tensor: &mut BaguaTensorPy,
+        op: u8,
+    ) {
+        self.inner.reduce_scatter(
+            &mut send_tensor.inner,
+            &mut recv_tensor.inner,
+            BaguaReductionOp::from_u8(op).unwrap(),
+        )
+    }
+
     pub fn barrier(&self) {
         self.inner.barrier()
     }

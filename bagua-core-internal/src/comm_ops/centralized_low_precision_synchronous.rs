@@ -73,7 +73,7 @@ impl CommOpTrait for CentralizedLowPrecisionSynchronous {
                     )
                     .expect("cannot compress tensor");
                 tracing::debug!("start allgather");
-                c.allgather(compressed_tensor.as_ref(), &mut temp_tensor);
+                c.allgather2(compressed_tensor.as_ref(), &mut temp_tensor);
                 tracing::debug!("start decompress");
                 t.raw.decompress_from(
                     &self.compression_method,
