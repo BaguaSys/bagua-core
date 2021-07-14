@@ -320,6 +320,7 @@ fn main() {
                         unsafe {
                             cpp::cpp!([device_id as "size_t", ptr as "void*"]
                             {
+                                size_t bytes = 4;
                                 CUDACHECK(cudaSetDevice(device_id));
                                 float x = 0.;
                                 CUDACHECK(cudaMemcpy((void*)&x, ptr, bytes, cudaMemcpyDeviceToHost));
