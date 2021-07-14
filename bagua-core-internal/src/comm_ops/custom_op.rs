@@ -4,7 +4,6 @@ use crate::BaguaCommOpChannels;
 use std::sync::Arc;
 use std::fmt;
 
-#[derive(Debug)]
 pub struct CustomOp {
     pub callable: Arc<dyn Fn(Arc<BaguaBucket>, &BaguaCommOpChannels) -> ()>,
 }
