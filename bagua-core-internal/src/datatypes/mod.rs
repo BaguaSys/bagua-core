@@ -5,12 +5,13 @@ use crate::comm_ops::decentralized_full_precision_synchronous::{
 };
 use crate::comm_ops::decentralized_low_precision_synchronous::DecentralizedLowPrecisionSynchronous;
 use crate::comm_ops::python_ffi_op::PythonFFIOp;
+use crate::comm_ops::custom_op::CustomOp;
 use crate::comm_ops::CommOpTrait;
 use crate::communicators::{BaguaCommunicator, BaguaSingleCommunicator};
 use crate::resource_pool::{CudaMemory, CUDA_DEVICE_MEMORY_POOL};
 use crate::telemetry::TELEMETRY;
 use crate::torch_ffi::root::c10::{DeviceType, StorageImpl, TensorImpl};
-use crate::{kernels, BaguaCoreError};
+use crate::{kernels, BaguaCoreError, BaguaCommOpChannels};
 use itertools::Itertools;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
