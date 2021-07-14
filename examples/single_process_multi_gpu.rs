@@ -252,10 +252,17 @@ impl BaguaSingleBackendForKAI {
         for bucket in &buckets {
             buckets_ref.push(bucket);
         }
-        self.backend.register_ordered_buckets(buckets_ref.as_slice());
+        self.backend
+            .register_ordered_buckets(buckets_ref.as_slice());
         for bucket in buckets.iter_mut() {
             bucket.append_centralized_synchronous_op(
-                Some(&self.comm), Some(&self.comm), false, true, false, None);
+                Some(&self.comm),
+                Some(&self.comm),
+                false,
+                true,
+                false,
+                None,
+            );
         }
 
         self.registered_tensors = tensors;
@@ -477,7 +484,12 @@ fn main() {
                             master_addr.clone(),
                             master_port,
                         );
-                        backend4kai.register_tensors("default_model".to_string(), vec![tensors[i].clone()], autotune_service_addr.clone(), autotune_service_port);
+                        backend4kai.register_tensors(
+                            "default_model".to_string(),
+                            vec![tensors[i].clone()],
+                            autotune_service_addr.clone(),
+                            autotune_service_port,
+                        );
                         return backend4kai;
                     }));
                 }
