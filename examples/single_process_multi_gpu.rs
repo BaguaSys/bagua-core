@@ -316,6 +316,19 @@ fn main() {
                         );
                         backend4kai.mark_tensor_ready(&t, 0);
                         backend4kai.wait_pending_comm_ops();
+                        let ptr = t.inner.read().raw.ptr;
+                        unsafe {
+                            cpp::cpp!([device_id as "size_t", ptr as "void*"]
+                            {
+                                size_t bytes = 4;
+                                CUDACHECK(cudaSetDevice(device_id));
+                                float x = 0.;
+                                CUDACHECK(cudaMemcpy((void*)&x, ptr, 4, cudaMemcpyDeviceToHost));
+                                printf("avg=%f\n", x);
+
+                                return ptr;
+                            });
+                        };
                         return backend4kai;
                     }));
                 }
