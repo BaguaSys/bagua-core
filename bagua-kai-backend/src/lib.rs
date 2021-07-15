@@ -137,8 +137,8 @@ impl BaguaSingleBackendForKAI {
     pub fn register_ordered_buckets(&mut self, buckets: &[&BaguaBucket]) {
         self.backend.register_ordered_buckets(buckets).unwrap();
         self.bucket_callback = Vec::with_capacity(buckets.len());
-        for (i, bucket) in buckets.iter().enumerate() {
-            for tensor in bucket.inner.lock().tensors {
+        for (i, bucket) in buckets.iter_mut().enumerate() {
+            for tensor in &bucket.inner.lock().tensors {
                 self.tensor_name_to_bucket_id.insert(tensor.name(), i);
             }
 
