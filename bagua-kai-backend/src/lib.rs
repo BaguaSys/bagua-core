@@ -134,7 +134,7 @@ impl BaguaSingleBackendForKAI {
         }
     }
 
-    pub fn register_ordered_buckets(&mut self, buckets: Vec<BaguaBucket>) {
+    pub fn register_ordered_buckets(&mut self, buckets: mut Vec<BaguaBucket>) {
         let mut buckets_ref = Vec::new();
         for bucket in &buckets {
             buckets_ref.push(bucket);
