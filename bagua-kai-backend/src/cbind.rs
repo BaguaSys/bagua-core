@@ -9,29 +9,42 @@ pub fn cstr_to_str(c_s: *const c_char, size: usize) -> &'static str {
     unsafe { str::from_utf8_unchecked(slice::from_raw_parts(c_s as *const u8, size)) }
 }
 
+pub fn str_to_bagua_tensor_dtype(dtype &str) -> Result<BaguaTensorDtype, Box<dyn std::error::Error>> {
+    match dtype.to_lowercase() {
+        "f32" => BaguaTensorDtype::F32,
+        "f16" => BaguaTensorDtype::F16,
+        "i64" => BaguaTensorDtype::I64,
+        "u8" => BaguaTensorDtype::U8,
+        _ => {
+            Err(Box::new(std::error::Error(format!("Invalid dtype={}", dtype))))
+        }
+    }
+}
+
 pub struct BaguaTensorC {
     inner: BaguaTensor,
 }
 
 #[no_mangle]
 pub extern "C" fn bagua_tensor_c_create(
-    ptr: u64,
     name_ptr: *const c_char,
     name_size: usize,
+    device_id: usize,
+    ptr: u64,
     num_elem: usize,
-    num_elem_allocated: usize,
     dtype_ptr: *const c_char,
     dtype_size: usize,
-    device_id: usize,
+    ready_cuda_event_ptr: u64,
 ) -> *mut BaguaTensorC {
+    let dtype_str = cstr_to_str(dtype_ptr, dtype_size).to_string();
     let obj = BaguaTensorC {
         inner: BaguaTensor::new(
-            cstr_to_str(name_ptr, name_size),
+            cstr_to_str(name_ptr, name_size).to_string(),
+            device_id,
             ptr,
             num_elem,
-            num_elem_allocated,
-            cstr_to_str(dtype_ptr, dtype_size),
-            device_id,
+            str_to_bagua_tensor_dtype(dtype_str).unwrap(),
+            ready_cuda_event_ptr,
         ),
     };
 
@@ -163,7 +176,7 @@ pub extern "C" fn bagua_single_backend_for_kai_c_register_tensors(
     unsafe {
         let slice: &[*mut BaguaTensorC] = slice::from_raw_parts(tensors_ptr, tensors_len);
         for tensor_ptr in slice.iter() {
-            tensors.push(&((*(*tensor_ptr)).inner));
+            tensors.push(((*(*tensor_ptr)).inner));
         }
     }
 
@@ -192,7 +205,7 @@ pub extern "C" fn bagua_single_backend_for_kai_c_allreduce(
 
     unsafe {
         (*ptr).inner.lock().allreduce(
-            &(*tensor),
+            &(tensor.inner),
             ready_cuda_event_ptr,
             Arc::new(move || {
                 callback();

@@ -15,6 +15,7 @@ bagua-store = { path = "../bagua-store" }
 parking_lot = { version = "0.11", features = ["deadlock_detection"] }
 tonic = "0.4"
 prost = "0.7"
+libc = "0.2"
 tokio = { version = "1.8.0", features = ["full"] }
 argparse = "0.2.2"
 tracing = "0.1"

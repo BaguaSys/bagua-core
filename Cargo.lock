@@ -211,6 +211,7 @@ dependencies = [
  "argparse",
  "bagua-core-internal",
  "bagua-store",
+ "libc",
  "nix",
  "parking_lot",
  "prost",
