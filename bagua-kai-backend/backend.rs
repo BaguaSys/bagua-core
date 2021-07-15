@@ -1,33 +1,30 @@
 extern crate argparse;
 
 use argparse::{ArgumentParser, Store, StoreTrue};
-use cpp::cpp;
-use nix::{
-    sys::wait::waitpid,
-    unistd::{fork, ForkResult},
-};
 use std::{collections::HashMap, sync::Arc, thread, time};
 use tokio::runtime::Runtime;
 use tracing;
 use tracing::{info, Level};
 use tracing_subscriber;
 
-use bagua_core_internal::communicators::{BaguaCommOpConfig, BaguaSingleCommunicator};
-use bagua_core_internal::datatypes::{BaguaBucket, BaguaTensor, BaguaTensorDtype};
-use bagua_core_internal::resource_pool::CudaMemory;
-use bagua_core_internal::telemetry::{
-    BaguaCommCoreTelemetry, RegisterTensorsRequest, TensorDeclaration,
+
+use bagua_core_internal::{
+    communicators::{BaguaCommOpConfig, BaguaSingleCommunicator},
+    datatypes::{BaguaBucket, BaguaTensor, BaguaTensorDtype},
+    resource_pool::CudaMemory,
+    telemetry::{
+        BaguaCommCoreTelemetry, RegisterTensorsRequest, TensorDeclaration,
+    },
+    cuda_utils::{
+        cuda_memcpy_device_to_host_sync,
+        cuda_memcpy_host_to_device_sync,
+        
+        cuda_set_device,
+    },
+    BaguaCommBackend, BaguaCommOpChannels
 };
-use bagua_core_internal::{BaguaCommBackend, BaguaCommOpChannels};
 use bagua_store::{BaguaKvStore, BaguaKvStoreServer, KvStoreService};
 
-cpp! {{
-#include <nccl.h>
-#include <stdio.h>
-#include <iostream>
-
-#define CUDACHECK(cmd) do { cudaError_t e = cmd; if( e != cudaSuccess ) { printf("Failed: Cuda error %s:%d '%s'\n", __FILE__,__LINE__,cudaGetErrorString(e)); exit(EXIT_FAILURE); } } while(0)
-}}
 
 fn init_process_group(
     rank: usize,
@@ -262,6 +259,10 @@ impl Drop for BaguaSingleBackendForKAI {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nix::{
+        sys::wait::waitpid,
+        unistd::{fork, ForkResult},
+    };
 
     #[test]
     fn test_bagua_single_backend_for_kai() {
@@ -279,21 +280,20 @@ mod tests {
                 }
                 ForkResult::Child => {
                     println!("gpu_setting={:?}", gpu_setting);
+                    let memory_holder = Vec::new();
                     let mut tensors = Vec::new();
                     for device_id in gpu_setting.clone() {
                         let ptr = unsafe {
-                            cpp::cpp!([device_id as "size_t"] -> u64 as "void*"
-                            {
-                                size_t bytes = 4;
-                                CUDACHECK(cudaSetDevice(device_id));
-                                void* ptr = 0;
-                                CUDACHECK(cudaMalloc(&ptr, bytes));
-                                float x = device_id;
-                                CUDACHECK(cudaMemcpy(ptr, (void*)&x, bytes, cudaMemcpyHostToDevice));
-    
-                                return ptr;
-                            })
-                        };
+                            cuda_set_device(device_id);
+
+                            let bytes = 4;
+                            let device_x = Arc::new(CudaMemory::new(bytes));
+                            memory_holder.push(device_x.clone());
+                            let host_x = device_id as f32;
+                            cuda_memcpy_host_to_device_sync(device_x.ptr, &host_x as u64, bytes);
+
+                            return x.ptr;
+                        }
                         tensors.push(BaguaTensor::new(
                             "tensor-1".to_string(),
                             device_id,
@@ -333,18 +333,16 @@ mod tests {
                             for tensor in tensor_list {
                                 let ptr = tensor.inner.read().raw.data_ptr();
                                 backend4kai.allreduce(tensor, 0, move || {
-                                    let allreduce_value = unsafe {
-                                        cpp::cpp!([device_id_clone as "size_t", ptr as "void*"]) -> f32 as "float" {
-                                            size_t bytes = 4;
-                                            CUDACHECK(cudaSetDevice(device_id_clone));
-                                            float x = 0.;
-                                            CUDACHECK(cudaMemcpy((void*)&x, ptr, bytes, cudaMemcpyDeviceToHost));
-
-                                            return x;
-                                        }
+                                    let result = unsafe {
+                                        cuda_set_device(device_id_clone);
+                                        let host_x: f32 = 0.;
+                                        let host_x_ptr: *const f32 = &host_x;
+                                        cuda_memcpy_device_to_host_sync(host_x_ptr as u64, ptr, 4);
+                                        
+                                        return host_x;
                                     };
 
-                                    assert_eq!(allreduce_value, 3.5);
+                                    assert_eq!(result, 3.5);
                                 });
                             }
 
