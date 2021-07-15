@@ -140,7 +140,7 @@ impl BaguaSingleBackendForKAI {
             buckets_ref.push(&bucket);
         }
 
-        self.backend.register_ordered_buckets(buckets_ref).unwrap();
+        self.backend.register_ordered_buckets(&buckets_ref).unwrap();
         self.bucket_callback = Vec::with_capacity(buckets.len());
         for (i, bucket) in buckets.iter().enumerate() {
             for tensor in &bucket.inner.lock().tensors {
@@ -208,11 +208,7 @@ impl BaguaSingleBackendForKAI {
             }
             buckets.push(bucket);
         }
-        let mut buckets_ref = Vec::new();
-        for bucket in &buckets {
-            buckets_ref.push(bucket);
-        }
-        self.register_ordered_buckets(&buckets_ref);
+        self.register_ordered_buckets(buckets);
     }
 
     pub fn mark_tensor_ready(&mut self, tensor: &BaguaTensor, ready_cuda_event_ptr: u64) {
@@ -318,11 +314,7 @@ mod tests {
                             }
                             let bucket = BaguaBucket::new(tensors_ref.as_slice(), "bucket-1");
                             let buckets = vec![bucket];
-                            let buckets_ref = Vec::new();
-                            for bucket in buckets {
-                                buckets_ref.push(&bucket);
-                            }
-                            backend4kai.register_ordered_buckets(buckets_ref.as_slice());
+                            backend4kai.register_ordered_buckets(buckets);
 
                             for tensor in tensor_list {
                                 let ptr = tensor.inner.read().raw.data_ptr();
