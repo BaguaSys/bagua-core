@@ -6,8 +6,11 @@ use nix::{
     sys::wait::waitpid,
     unistd::{fork, ForkResult},
 };
-use std::sync::Arc;
-use std::{thread, time};
+use std::{
+    sync::Arc,
+    collections::HashMap,
+    thread, time,
+}
 use tokio::runtime::Runtime;
 use tracing;
 use tracing::{info, Level};
@@ -91,6 +94,8 @@ pub struct BaguaSingleBackendForKAI {
         std::thread::JoinHandle<()>,
         tokio::sync::oneshot::Sender<()>,
     )>,
+    pub bucket_callback: Vec<Arc<Fn()>>,
+    pub tensor_name_to_bucket_id: std::collections::HashMap<String, i32>,
 }
 
 impl BaguaSingleBackendForKAI {
@@ -175,15 +180,18 @@ impl BaguaSingleBackendForKAI {
         println!("buckets={:?}", rsp.recommended_hyperparameters.buckets);
         for (i, td_bucket) in rsp.recommended_hyperparameters.buckets.iter().enumerate() {
             let mut tensors_ref = Vec::<&BaguaTensor>::new();
-            for td_tensor in td_bucket.iter() {
+            for td_tensor in td_bucket.mut_iter() {
                 let t: Vec<&BaguaTensor> = tensors
                     .iter()
                     .filter(|t| t.name() == td_tensor.name)
                     .collect();
                 tensors_ref.extend(t);
             }
-            buckets
-                .push(BaguaBucket::new(tensors_ref.as_slice(), &*format!("bucket-{}", i)).unwrap());
+            bucket = BaguaBucket::new(tensors_ref.as_slice(), &*format!("bucket-{}", i)).unwrap();
+            for t in tensors_ref {
+                self.tensor_name_to_bucket_id.insert(t.name(), i);
+            }
+            buckets.push(bucket);
         }
         let mut buckets_ref = Vec::new();
         for bucket in &buckets {
@@ -209,6 +217,7 @@ impl BaguaSingleBackendForKAI {
             ));
         }
 
+        self.bucket_callback = Vec::with_capacity(buckets.len())
         self.registered_tensors = tensors;
         self.registered_buckets = buckets;
     }
@@ -221,6 +230,21 @@ impl BaguaSingleBackendForKAI {
 
     pub fn wait_pending_comm_ops(&self) {
         self.backend.wait_pending_comm_ops();
+    }
+
+    pub fn allreduce(
+        &mut self,
+        tensor: &BaguaTensor,
+        ready_cuda_event_ptr: u64,
+        callback: Arc<dyn Fn()>,
+    ) {
+        let bucket_id = self.tensor_name_to_bucket_id.get(tensor.name()).unwrap();
+        let raw_callback = self.bucket_callback[bucket_id].clone();
+        let new_callback = Arc::new(move || {
+            raw_callback();
+            callback();
+        });
+        self.bucket_callback[bucket_id] = new_callback;
     }
 }
 
