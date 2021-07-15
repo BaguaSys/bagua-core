@@ -318,7 +318,7 @@ mod tests {
 
                             for tensor in tensor_list {
                                 let ptr = tensor.inner.read().raw.data_ptr();
-                                backend4kai.allreduce(tensor, 0, move || {
+                                backend4kai.allreduce(tensor, 0, Arc::new(move || {
                                     let result = unsafe {
                                         cuda_set_device(device_id_clone);
                                         let host_x: f32 = 0.;
@@ -329,7 +329,7 @@ mod tests {
                                     };
 
                                     assert_eq!(result, 3.5);
-                                });
+                                }));
                             }
 
                             return backend4kai;
