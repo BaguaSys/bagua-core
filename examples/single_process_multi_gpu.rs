@@ -238,7 +238,7 @@ impl BaguaSingleBackendForKAI {
         &mut self,
         tensor: &BaguaTensor,
         ready_cuda_event_ptr: u64,
-        callback: Arc<dyn Fn()>,
+        callback: Arc<dyn Fn() + Send + Sync + 'static>,
     ) {
         let bucket_id = *self.tensor_name_to_bucket_id.get(&tensor.name()).unwrap();
         let raw_callback = self.bucket_callback[bucket_id].clone();
