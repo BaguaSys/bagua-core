@@ -318,18 +318,26 @@ mod tests {
 
                             for tensor in tensor_list {
                                 let ptr = tensor.inner.read().raw.data_ptr();
-                                backend4kai.allreduce(&tensor, 0, Arc::new(move || {
-                                    let result = unsafe {
-                                        cuda_set_device(device_id_clone as u64);
-                                        let host_x: f32 = 0.;
-                                        let host_x_ptr: *const f32 = &host_x;
-                                        cuda_memcpy_device_to_host_sync(host_x_ptr as u64, ptr, 4);
+                                backend4kai.allreduce(
+                                    tensor,
+                                    0,
+                                    Arc::new(move || {
+                                        let result = unsafe {
+                                            cuda_set_device(device_id_clone as u64);
+                                            let host_x: f32 = 0.;
+                                            let host_x_ptr: *const f32 = &host_x;
+                                            cuda_memcpy_device_to_host_sync(
+                                                host_x_ptr as u64,
+                                                ptr,
+                                                4,
+                                            );
 
-                                        return host_x;
-                                    };
+                                            return host_x;
+                                        };
 
-                                    assert_eq!(result, 3.5);
-                                }));
+                                        assert_eq!(result, 3.5);
+                                    }),
+                                );
                             }
 
                             return backend4kai;
