@@ -330,7 +330,7 @@ mod tests {
                                             );
 
                                             host_x
-                                        };
+                                        }();
 
                                         assert_eq!(result, 3.5);
                                     }),
