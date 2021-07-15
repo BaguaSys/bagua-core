@@ -203,7 +203,7 @@ impl BaguaSingleBackendForKAI {
             );
             let rank_clone = self.rank;
             bucket.append_custom_op(Arc::new(
-                |_x: Arc<BaguaBucket>, _y: &BaguaCommOpChannels| {
+                move |_x: Arc<BaguaBucket>, _y: &BaguaCommOpChannels| {
                     println!("rank_clone={}", rank_clone);
                 },
             ));
