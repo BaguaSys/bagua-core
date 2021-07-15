@@ -281,7 +281,11 @@ mod tests {
                             memory_holder.push(device_x.clone());
                             let host_x = device_id as f32;
                             let host_x_ptr: *const f32 = &host_x;
-                            cuda_memcpy_host_to_device_sync(device_x.ptr, host_x_ptr as u64, bytes as i32);
+                            cuda_memcpy_host_to_device_sync(
+                                device_x.ptr,
+                                host_x_ptr as u64,
+                                bytes as i32,
+                            );
 
                             return x.ptr;
                         };
@@ -313,7 +317,8 @@ mod tests {
                             for tensor in &tensor_list {
                                 tensors_ref.push(tensor);
                             }
-                            let bucket = BaguaBucket::new(tensors_ref.as_slice(), "bucket-1").unwrap();
+                            let bucket =
+                                BaguaBucket::new(tensors_ref.as_slice(), "bucket-1").unwrap();
                             backend4kai.register_ordered_buckets(vec![bucket]);
 
                             for tensor in tensor_list {
