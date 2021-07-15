@@ -1,7 +1,5 @@
 use crate::backend::BaguaSingleBackendForKAI;
-use bagua_core_internal::{
-    datatypes::{BaguaBucket, BaguaTensor, BaguaTensorDtype},
-};
+use bagua_core_internal::datatypes::{BaguaBucket, BaguaTensor, BaguaTensorDtype};
 
 pub fn cstr_to_str(c_s: *const c_char, size: usize) -> &'static str {
     unsafe { str::from_utf8_unchecked(slice::from_raw_parts(c_s as *const u8, size)) }
@@ -111,7 +109,9 @@ pub extern "C" fn bagua_single_backend_for_kai_c_create(
 ) -> *mut BaguaSingleBackendForKAIC {
     let obj = BaguaSingleBackendForKAIC {
         inner: Arc::new(Mutex::new(BaguaSingleBackendForKAI::new(
-            rank, nranks, device_id, 
+            rank,
+            nranks,
+            device_id,
             cstr_to_str(master_addr_ptr, master_addr_size),
             master_port,
         ))),
@@ -123,9 +123,7 @@ pub extern "C" fn bagua_single_backend_for_kai_c_create(
 }
 
 #[no_mangle]
-pub extern "C" fn bagua_single_backend_for_kai_c_destory(
-    ptr: &mut *mut BaguaSingleBackendForKAIC,
-) {
+pub extern "C" fn bagua_single_backend_for_kai_c_destory(ptr: &mut *mut BaguaSingleBackendForKAIC) {
     // First, we **must** check to see if the pointer is null.
     if ptr.is_null() {
         // Do nothing.
@@ -169,7 +167,7 @@ pub extern "C" fn bagua_single_backend_for_kai_c_register_tensors(
         }
     }
 
-    unsafe { 
+    unsafe {
         (*ptr).inner.lock().register_tensors(
             cstr_to_str(model_name_ptr, model_name_size),
             tensors,
@@ -186,7 +184,7 @@ pub extern "C" fn bagua_single_backend_for_kai_c_allreduce(
     ptr: *mut BaguaSingleBackendForKAIC,
     tensor: *mut BaguaTensorC,
     ready_cuda_event_ptr: u64,
-    callback: extern fn(),
+    callback: extern "C" fn(),
 ) -> i32 {
     if ptr.is_null() {
         return -1;
