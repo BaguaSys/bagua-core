@@ -174,7 +174,7 @@ pub extern "C" fn bagua_single_backend_for_kai_c_register_tensors(
     unsafe {
         let slice: &[*mut BaguaTensorC] = slice::from_raw_parts(tensors_ptr, tensors_len);
         for tensor_ptr in slice.iter() {
-            tensors.push(((*(*tensor_ptr)).inner));
+            tensors.push(((*(*tensor_ptr)).inner).clone());
         }
     }
 
