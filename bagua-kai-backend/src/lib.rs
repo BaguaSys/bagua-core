@@ -319,7 +319,7 @@ mod tests {
                                     &tensor,
                                     0,
                                     Arc::new(move || {
-                                        let result = || unsafe {
+                                        let result = unsafe {
                                             cuda_set_device(device_id_clone as u64);
                                             let host_x: f32 = 0.;
                                             let host_x_ptr: *const f32 = &host_x;
@@ -330,7 +330,7 @@ mod tests {
                                             );
 
                                             host_x
-                                        }();
+                                        };
 
                                         assert_eq!(result, 3.5);
                                     }),
