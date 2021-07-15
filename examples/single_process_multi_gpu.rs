@@ -6,6 +6,7 @@ use nix::{
     sys::wait::waitpid,
     unistd::{fork, ForkResult},
 };
+use std::sync::Arc;
 use std::{thread, time};
 use tokio::runtime::Runtime;
 use tracing;
