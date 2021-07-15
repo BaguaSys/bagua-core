@@ -1,10 +1,9 @@
-use std::{str, slice};
 use libc::c_char;
+use parking_lot::Mutex;
+use std::{slice, str, sync::Arc};
 
 use crate::backend::BaguaSingleBackendForKAI;
-use bagua_core_internal::{
-    datatypes::{BaguaBucket, BaguaTensor, BaguaTensorDtype},
-};
+use bagua_core_internal::datatypes::{BaguaBucket, BaguaTensor, BaguaTensorDtype};
 
 pub fn cstr_to_str(c_s: *const c_char, size: usize) -> &'static str {
     unsafe { str::from_utf8_unchecked(slice::from_raw_parts(c_s as *const u8, size)) }
@@ -17,6 +16,8 @@ pub struct BaguaTensorC {
 #[no_mangle]
 pub extern "C" fn bagua_tensor_c_create(
     ptr: u64,
+    name_ptr: *const c_char,
+    name_size: usize,
     num_elem: usize,
     num_elem_allocated: usize,
     dtype_ptr: *const c_char,
@@ -25,6 +26,7 @@ pub extern "C" fn bagua_tensor_c_create(
 ) -> *mut BaguaTensorC {
     let obj = BaguaTensorC {
         inner: BaguaTensor::new(
+            cstr_to_str(name_ptr, name_size),
             ptr,
             num_elem,
             num_elem_allocated,
@@ -57,8 +59,6 @@ pub extern "C" fn bagua_bucket_c_create(
     tensors_len: usize,
     name_ptr: *const c_char,
     name_size: usize,
-    inplace: bool,
-    align_bytes: usize,
 ) -> *mut BaguaBucketC {
     let tensor_ptr_slice: &[*mut BaguaTensorC] =
         unsafe { slice::from_raw_parts(tensors_ptr, tensors_len) };
@@ -69,12 +69,7 @@ pub extern "C" fn bagua_bucket_c_create(
         }
     };
 
-    let new_bucket = BaguaBucket::new(
-        tensors.as_slice(),
-        cstr_to_str(name_ptr, name_size),
-        inplace,
-        align_bytes,
-    );
+    let new_bucket = BaguaBucket::new(tensors.as_slice(), cstr_to_str(name_ptr, name_size));
     let new_bucket = match new_bucket {
         Ok(bucket) => bucket,
         Err(error) => {
@@ -114,21 +109,21 @@ pub extern "C" fn bagua_single_backend_for_kai_c_create(
 ) -> *mut BaguaSingleBackendForKAIC {
     let obj = BaguaSingleBackendForKAIC {
         inner: Arc::new(Mutex::new(BaguaSingleBackendForKAI::new(
-            rank, nranks, device_id, 
-            cstr_to_str(master_addr_ptr, master_addr_size),
+            rank,
+            nranks,
+            device_id,
+            cstr_to_str(master_addr_ptr, master_addr_size).to_string(),
             master_port,
         ))),
     };
 
     // into_raw turns the Box into a *mut, which the borrow checker
     // ignores, without calling its destructor.
-    Box::into_raw(Box::new(obj));
+    Box::into_raw(Box::new(obj))
 }
 
 #[no_mangle]
-pub extern "C" fn bagua_single_backend_for_kai_c_destory(
-    ptr: &mut *mut BaguaSingleBackendForKAIC,
-) {
+pub extern "C" fn bagua_single_backend_for_kai_c_destory(ptr: &mut *mut BaguaSingleBackendForKAIC) {
     // First, we **must** check to see if the pointer is null.
     if ptr.is_null() {
         // Do nothing.
@@ -172,7 +167,7 @@ pub extern "C" fn bagua_single_backend_for_kai_c_register_tensors(
         }
     }
 
-    unsafe { 
+    unsafe {
         (*ptr).inner.lock().register_tensors(
             cstr_to_str(model_name_ptr, model_name_size),
             tensors,
@@ -189,7 +184,7 @@ pub extern "C" fn bagua_single_backend_for_kai_c_allreduce(
     ptr: *mut BaguaSingleBackendForKAIC,
     tensor: *mut BaguaTensorC,
     ready_cuda_event_ptr: u64,
-    callback: extern fn(),
+    callback: extern "C" fn(),
 ) -> i32 {
     if ptr.is_null() {
         return -1;
