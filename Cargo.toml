@@ -1,1 +1,9 @@
-workspace = {members = ["bagua-core-internal", "bagua-core-py", "bagua-core-c"],exclude = []}
+workspace = { members=[
+    "bagua-core-internal",
+    "bagua-core-py",
+    "bagua-core-c",
+    "bagua-store",
+
+    # Internal
+    "examples",
+], exclude=[] }

@@ -2,6 +2,8 @@
 #![recursion_limit = "512"] // workaround recursion limit reached while expanding $crate::__cpp_internal!
 #[macro_use]
 extern crate shadow_rs;
+#[macro_use]
+extern crate float_cmp;
 
 pub mod comm_ops;
 pub mod communicators;

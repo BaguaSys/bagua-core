@@ -1,5 +1,6 @@
 use crate::comm_ops::centralized_full_precision_synchronous::CentralizedFullPrecisionSynchronous;
 use crate::comm_ops::centralized_low_precision_synchronous::CentralizedLowPrecisionSynchronous;
+use crate::comm_ops::custom_op::CustomOp;
 use crate::comm_ops::decentralized_full_precision_synchronous::{
     DecentralizedFullPrecisionSynchronous, PeerSelectionMode,
 };
@@ -10,7 +11,7 @@ use crate::communicators::{BaguaCommunicator, BaguaSingleCommunicator};
 use crate::resource_pool::{CudaMemory, CUDA_DEVICE_MEMORY_POOL};
 use crate::telemetry::TELEMETRY;
 use crate::torch_ffi::root::c10::{DeviceType, StorageImpl, TensorImpl};
-use crate::{kernels, BaguaCoreError};
+use crate::{kernels, BaguaCommOpChannels, BaguaCoreError};
 use itertools::Itertools;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
@@ -737,6 +738,31 @@ pub struct BaguaTensor {
 }
 
 impl BaguaTensor {
+    pub fn new(
+        name: String,
+        device_id: usize,
+        data_ptr: u64,
+        num_elem: usize,
+        dtype: BaguaTensorDtype,
+        ready_cuda_event_ptr: u64,
+    ) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(BaguaTensorInner {
+                name,
+                raw: Box::new(BaguaTensorRaw {
+                    ptr: data_ptr,
+                    num_elem_allocated: num_elem,
+                    dtype: dtype,
+                    num_elem: num_elem,
+                    device_id: device_id,
+                    pool_allocations: vec![],
+                }),
+                ready_for_comm: false,
+                ready_cuda_event_ptr: ready_cuda_event_ptr,
+            })),
+        }
+    }
+
     pub fn new_from_torch(
         name: String,
         torch_cdata_ptr: u64,
@@ -768,12 +794,6 @@ impl BaguaTensor {
     pub fn mark_comm_ready(&self, cuda_event_ptr: u64) {
         if cuda_event_ptr == 0 {
             tracing::info!("mark comm ready with an event 0, ignoring event");
-        }
-        match TELEMETRY.as_ref() {
-            None => {}
-            Some(ref x) => {
-                x.lock().new_tensor_ready(self.inner.read().name.as_str());
-            }
         }
         let mut guard = self.inner.write();
         guard.ready_for_comm = true;
@@ -1159,6 +1179,14 @@ impl BaguaBucket {
 
     pub fn append_python_op(&mut self, op: pyo3::Py<pyo3::PyAny>) {
         let comm_op: Arc<dyn CommOpTrait + Send + Sync> = Arc::new(PythonFFIOp { py_callable: op });
+        self.inner.lock().comm_ops.push(comm_op);
+    }
+
+    pub fn append_custom_op(
+        &mut self,
+        op: Arc<dyn Fn(Arc<BaguaBucket>, &BaguaCommOpChannels) -> () + Send + Sync + 'static>,
+    ) {
+        let comm_op: Arc<dyn CommOpTrait + Send + Sync> = Arc::new(CustomOp { callable: op });
         self.inner.lock().comm_ops.push(comm_op);
     }
 

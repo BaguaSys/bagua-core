@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package bagua.kv_store;
+
+message SetRequest {
+    string key = 1;
+    bytes value = 2;
+}
+
+message SetResponse {
+}
+
+message GetRequest {
+    string key = 1;
+}
+
+message GetResponse {
+    bytes value = 1;
+}
+
+message DeleteRequest {
+    string key = 1;
+}
+
+message DeleteResponse {
+};
+
+service KvStore {
+    rpc Set(SetRequest) returns (SetResponse) {}
+    rpc Get(GetRequest) returns (GetResponse) {}
+    rpc Delete(DeleteRequest) returns (DeleteResponse) {}
+}

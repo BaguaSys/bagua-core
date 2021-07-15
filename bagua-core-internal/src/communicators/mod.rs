@@ -594,3 +594,17 @@ impl BaguaCommunicatorInner {
         }
     }
 }
+
+#[derive(Debug)]
+pub struct BaguaCommOpConfig {
+    pub communicator_internode: Option<BaguaSingleCommunicator>,
+    pub communicator_intranode: Option<BaguaSingleCommunicator>,
+    pub hierarchical: bool,
+    pub average: bool,
+    pub scattergather: bool,
+    pub compression: Option<String>,
+
+    pub is_decentralized: bool,
+    pub peer_selection_mode: String,
+    pub communication_interval: usize,
+}
