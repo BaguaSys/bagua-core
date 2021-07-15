@@ -94,8 +94,8 @@ pub struct BaguaSingleBackendForKAI {
         std::thread::JoinHandle<()>,
         tokio::sync::oneshot::Sender<()>,
     )>,
-    pub bucket_callback: Vec<Arc<Fn() + 'static>>,
-    pub tensor_name_to_bucket_id: std::collections::HashMap<String, i32>,
+    pub bucket_callback: Vec<Arc<Fn() + Send + Sync + 'static>>,
+    pub tensor_name_to_bucket_id: std::collections::HashMap<String, usize>,
 }
 
 impl BaguaSingleBackendForKAI {
@@ -147,6 +147,8 @@ impl BaguaSingleBackendForKAI {
             registered_tensors: vec![],
             registered_buckets: vec![],
             kv_store: kv_store,
+            bucket_callback: vec![],
+            tensor_name_to_bucket_id: Default::default(),
         }
     }
 
@@ -180,7 +182,7 @@ impl BaguaSingleBackendForKAI {
         println!("buckets={:?}", rsp.recommended_hyperparameters.buckets);
         for (i, td_bucket) in rsp.recommended_hyperparameters.buckets.iter().enumerate() {
             let mut tensors_ref = Vec::<&BaguaTensor>::new();
-            for td_tensor in td_bucket.mut_iter() {
+            for td_tensor in td_bucket.iter() {
                 let t: Vec<&BaguaTensor> = tensors
                     .iter()
                     .filter(|t| t.name() == td_tensor.name)
@@ -238,7 +240,7 @@ impl BaguaSingleBackendForKAI {
         ready_cuda_event_ptr: u64,
         callback: Arc<dyn Fn()>,
     ) {
-        let bucket_id = self.tensor_name_to_bucket_id.get(tensor.name()).unwrap();
+        let bucket_id = self.tensor_name_to_bucket_id.get(&tensor.name()).unwrap();
         let raw_callback = self.bucket_callback[bucket_id].clone();
         let new_callback = Arc::new(move || {
             raw_callback();
