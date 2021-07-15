@@ -94,8 +94,23 @@ impl CommOpTrait for DecentralizedFullPrecisionSynchronous {
                         }
                     },
                     PeerSelectionMode::Ring => {
-                        unimplemented!()
-                    }
+                        if step % comm_interval == 0 {
+                            let comm_step = step / comm_interval;
+                            let peer_rank = if (comm_step % 2 == 0) {
+                                (c.rank + 1) % c.nranks
+                            } else {
+                                (c.rank + c.nranks - 1) % c.nranks
+                            } as i32;
+                            
+                            tracing::debug!("rank {} peer_rank {} step {}", c.rank, peer_rank, step);
+                            {
+                                let _guard = NCCLGroupGuard::new();
+                                c.send(&t.raw, peer_rank);
+                                c.recv(peer_tensor, peer_rank);
+                            }
+                            peer_tensor.average_inplace(&t.raw, c.stream_ptr);
+                        }
+                    },
                 }
             },
         );
@@ -104,38 +119,3 @@ impl CommOpTrait for DecentralizedFullPrecisionSynchronous {
     }
 }
 
-#[derive(Debug)]
-pub struct DecentralizedFullPrecisionSynchronousWriteback {
-    pub communicator: BaguaCommunicator,
-    pub peer_weight: BaguaTensor,
-    pub step: Mutex<usize>,
-    pub communication_interval: usize,
-}
-
-impl CommOpTrait for DecentralizedFullPrecisionSynchronousWriteback {
-    fn execute_background_communication(
-        &self,
-        bucket: Arc<BaguaBucket>,
-        comm_op_channels: &BaguaCommOpChannels,
-    ) {
-        let bucket = bucket.inner.lock();
-        let stream_ptr = self.communicator.stream_ptr();
-        let mut communication_tensor = bucket.get_communication_tensor(stream_ptr, false, false);
-        let comm_interval = &self.communication_interval;
-        let step = { *self.step.lock() };
-        
-        self.communicator.execute_communication(
-            &mut communication_tensor,
-            false,
-            false,
-            true,
-            &mut |c, t| {
-                if step % comm_interval == 0 {
-                    t.raw.clone_from(self.peer_weight.inner.read().raw.as_ref(), c.stream_ptr);
-                }
-            },
-        );
-        
-        *self.step.lock() += 1;
-    }
-}
