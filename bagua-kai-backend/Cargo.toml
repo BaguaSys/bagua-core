@@ -4,6 +4,11 @@ version = "0.0.0"
 publish = false
 edition = "2018"
 
+[lib]
+name = "bagua_kai_backend"
+crate-type = ["rlib", "dylib"]
+path = "src/lib.rs"
+
 [dependencies]
 bagua-core-internal = { path = "../bagua-core-internal" }
 bagua-store = { path = "../bagua-store" }
