@@ -5,7 +5,7 @@ use std::fmt;
 use std::sync::Arc;
 
 pub struct CustomOp {
-    pub callable: Box<dyn Fn(Arc<BaguaBucket>, &BaguaCommOpChannels) -> ()>,
+    pub callable: Arc<dyn Fn(Arc<BaguaBucket>, &BaguaCommOpChannels) -> () + Send + Sync + 'static>,
 }
 
 impl fmt::Debug for CustomOp {
