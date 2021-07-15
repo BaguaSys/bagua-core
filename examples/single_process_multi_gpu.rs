@@ -6,11 +6,7 @@ use nix::{
     sys::wait::waitpid,
     unistd::{fork, ForkResult},
 };
-use std::{
-    sync::Arc,
-    collections::HashMap,
-    thread, time,
-};
+use std::{collections::HashMap, sync::Arc, thread, time};
 use tokio::runtime::Runtime;
 use tracing;
 use tracing::{info, Level};
@@ -189,7 +185,8 @@ impl BaguaSingleBackendForKAI {
                     .collect();
                 tensors_ref.extend(t);
             }
-            let bucket = BaguaBucket::new(tensors_ref.as_slice(), &*format!("bucket-{}", i)).unwrap();
+            let bucket =
+                BaguaBucket::new(tensors_ref.as_slice(), &*format!("bucket-{}", i)).unwrap();
             for t in tensors_ref {
                 self.tensor_name_to_bucket_id.insert(t.name(), i);
             }
