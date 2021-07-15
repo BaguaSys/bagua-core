@@ -1,19 +1,11 @@
 extern crate argparse;
 
-use argparse::{ArgumentParser, Store, StoreTrue};
-use std::{collections::HashMap, sync::Arc, thread, time};
+use std::{sync::Arc, thread, time};
 use tokio::runtime::Runtime;
-use tracing;
-use tracing::{info, Level};
-use tracing_subscriber;
 
 use bagua_core_internal::{
     communicators::{BaguaCommOpConfig, BaguaSingleCommunicator},
-    cuda_utils::{
-        cuda_memcpy_device_to_host_sync, cuda_memcpy_host_to_device_sync, cuda_set_device,
-    },
     datatypes::{BaguaBucket, BaguaTensor, BaguaTensorDtype},
-    resource_pool::CudaMemory,
     telemetry::{BaguaCommCoreTelemetry, RegisterTensorsRequest, TensorDeclaration},
     BaguaCommBackend, BaguaCommOpChannels,
 };
@@ -78,7 +70,7 @@ pub struct BaguaSingleBackendForKAI {
         std::thread::JoinHandle<()>,
         tokio::sync::oneshot::Sender<()>,
     )>,
-    pub bucket_callback: Vec<Arc<Fn() + Send + Sync + 'static>>,
+    pub bucket_callback: Vec<Arc<dyn Fn() + Send + Sync + 'static>>,
     pub tensor_name_to_bucket_id: std::collections::HashMap<String, usize>,
 }
 
@@ -117,16 +109,15 @@ impl BaguaSingleBackendForKAI {
         } else {
             None
         };
-        let mut backend = BaguaCommBackend::new(
-            BaguaSingleBackendForKAI::BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP,
-            device_id,
-        );
 
         Self {
             rank: rank,
             nranks: nranks,
             device_id: device_id,
-            backend: backend,
+            backend: BaguaCommBackend::new(
+                BaguaSingleBackendForKAI::BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP,
+                device_id,
+            ),
             comm: init_process_group(rank, nranks, device_id, master_addr, master_port),
             kv_store: kv_store,
             bucket_callback: vec![],
@@ -211,16 +202,6 @@ impl BaguaSingleBackendForKAI {
         self.register_ordered_buckets(buckets);
     }
 
-    pub fn mark_tensor_ready(&mut self, tensor: &BaguaTensor, ready_cuda_event_ptr: u64) {
-        self.backend
-            .mark_communication_ready(tensor, ready_cuda_event_ptr)
-            .unwrap();
-    }
-
-    pub fn wait_pending_comm_ops(&self) {
-        self.backend.wait_pending_comm_ops();
-    }
-
     pub fn allreduce(
         &mut self,
         tensor: &BaguaTensor,
@@ -234,6 +215,10 @@ impl BaguaSingleBackendForKAI {
             callback();
         });
         self.bucket_callback[bucket_id] = new_callback;
+
+        self.backend
+            .mark_communication_ready(tensor, ready_cuda_event_ptr)
+            .unwrap();
     }
 }
 
@@ -241,7 +226,7 @@ impl Drop for BaguaSingleBackendForKAI {
     fn drop(&mut self) {
         if let Some((server_thread, tx)) = self.kv_store.take() {
             tx.send(()).unwrap();
-            server_thread.join();
+            server_thread.join().unwrap();
         }
     }
 }
@@ -252,6 +237,13 @@ mod tests {
     use nix::{
         sys::wait::waitpid,
         unistd::{fork, ForkResult},
+    };
+
+    use bagua_core_internal::{
+        cuda_utils::{
+            cuda_memcpy_device_to_host_sync, cuda_memcpy_host_to_device_sync, cuda_set_device,
+        },
+        resource_pool::CudaMemory,
     };
 
     #[test]
@@ -281,7 +273,11 @@ mod tests {
                             memory_holder.push(device_x.clone());
                             let host_x = device_id as f32;
                             let host_x_ptr: *const f32 = &host_x;
-                            cuda_memcpy_host_to_device_sync(device_x.ptr, host_x_ptr as u64, bytes as i32);
+                            cuda_memcpy_host_to_device_sync(
+                                device_x.ptr,
+                                host_x_ptr as u64,
+                                bytes as i32,
+                            );
 
                             return x.ptr;
                         };
@@ -313,7 +309,8 @@ mod tests {
                             for tensor in &tensor_list {
                                 tensors_ref.push(tensor);
                             }
-                            let bucket = BaguaBucket::new(tensors_ref.as_slice(), "bucket-1").unwrap();
+                            let bucket =
+                                BaguaBucket::new(tensors_ref.as_slice(), "bucket-1").unwrap();
                             backend4kai.register_ordered_buckets(vec![bucket]);
 
                             for tensor in tensor_list {
