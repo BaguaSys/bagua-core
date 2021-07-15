@@ -305,7 +305,7 @@ mod tests {
                                 master_port,
                             );
                             let tensor_list = vec![tensor.clone()];
-                            let tensors_ref = Vec::new();
+                            let mut tensors_ref = Vec::new();
                             for tensor in &tensor_list {
                                 tensors_ref.push(tensor);
                             }
