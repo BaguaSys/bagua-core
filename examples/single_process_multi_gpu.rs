@@ -189,7 +189,7 @@ impl BaguaSingleBackendForKAI {
                     .collect();
                 tensors_ref.extend(t);
             }
-            bucket = BaguaBucket::new(tensors_ref.as_slice(), &*format!("bucket-{}", i)).unwrap();
+            let bucket = BaguaBucket::new(tensors_ref.as_slice(), &*format!("bucket-{}", i)).unwrap();
             for t in tensors_ref {
                 self.tensor_name_to_bucket_id.insert(t.name(), i);
             }
@@ -219,7 +219,7 @@ impl BaguaSingleBackendForKAI {
             ));
         }
 
-        self.bucket_callback = Vec::with_capacity(buckets.len())
+        self.bucket_callback = Vec::with_capacity(buckets.len());
         self.registered_tensors = tensors;
         self.registered_buckets = buckets;
     }
@@ -240,7 +240,7 @@ impl BaguaSingleBackendForKAI {
         ready_cuda_event_ptr: u64,
         callback: Arc<dyn Fn()>,
     ) {
-        let bucket_id = self.tensor_name_to_bucket_id.get(&tensor.name()).unwrap();
+        let bucket_id = *self.tensor_name_to_bucket_id.get(&tensor.name()).unwrap();
         let raw_callback = self.bucket_callback[bucket_id].clone();
         let new_callback = Arc::new(move || {
             raw_callback();
