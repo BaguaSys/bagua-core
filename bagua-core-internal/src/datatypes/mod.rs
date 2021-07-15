@@ -1,7 +1,7 @@
 use crate::comm_ops::centralized_full_precision_synchronous::CentralizedFullPrecisionSynchronous;
 use crate::comm_ops::centralized_low_precision_synchronous::CentralizedLowPrecisionSynchronous;
 use crate::comm_ops::decentralized_full_precision_synchronous::{
-    DecentralizedFullPrecisionSynchronous, PeerSelectionMode, DecentralizedFullPrecisionSynchronousWriteback
+    DecentralizedFullPrecisionSynchronous, PeerSelectionMode,
 };
 use crate::comm_ops::decentralized_low_precision_synchronous::DecentralizedLowPrecisionSynchronous;
 use crate::comm_ops::python_ffi_op::PythonFFIOp;
@@ -795,7 +795,7 @@ impl BaguaTensor {
 
     pub fn compress(&self, method: &str, n_chunks: usize, target_chunk: i32) -> Self {
         match method {
-            "min_max_uint8" => Self {
+            "MinMaxUInt8" => Self {
                 inner: Arc::new(RwLock::new(BaguaTensorInner {
                     name: "compressed_tensor".to_string(),
                     raw: self
@@ -855,7 +855,7 @@ impl BaguaTensor {
     //
     pub fn decompress_from(&mut self, method: &str, n_chunks: usize, compressed_buffer: &Self) {
         match method {
-            "min_max_uint8" => {
+            "MinMaxUInt8" => {
                 self.inner.write().raw.decompress_from(
                     &TensorCompressionMethod::MinMaxUInt8(MinMaxUInt8CompressionParameters {}),
                     n_chunks,
@@ -1158,31 +1158,11 @@ impl BaguaBucket {
         self.inner.lock().comm_ops.push(comm_op);
     }
     
-    pub fn append_decentralized_synchronous_writeback_op(
-        &mut self,
-        communicator_internode: Option<&BaguaSingleCommunicator>,
-        communicator_intranode: Option<&BaguaSingleCommunicator>,
-        hierarchical: bool,
-        communication_interval: usize,
-        peer_weight: BaguaTensor,
-    ) {
-        let communicator =
-            BaguaCommunicator::new(communicator_internode, communicator_intranode, hierarchical)
-                .expect("cannot create communicator");
-        let comm_op: Arc<dyn CommOpTrait + Send + Sync> = Arc::new(DecentralizedFullPrecisionSynchronousWriteback {
-                communicator,
-                peer_weight,
-                step: Default::default(),
-                communication_interval,
-            });
-        self.inner.lock().comm_ops.push(comm_op);
-    }
-
     pub fn append_python_op(&mut self, op: pyo3::Py<pyo3::PyAny>) {
         let comm_op: Arc<dyn CommOpTrait + Send + Sync> = Arc::new(PythonFFIOp { py_callable: op });
         self.inner.lock().comm_ops.push(comm_op);
     }
-
+    
     /// this function will use communicator_internode to communicate.
     /// if hierarchical = True, it will do hierarchical communicator, this requires intranode communicator on each node and inter node communicator on leader GPU. leader GPU will be the GPU whose communicator_intranode rank is 0
     pub fn append_centralized_synchronous_op(
