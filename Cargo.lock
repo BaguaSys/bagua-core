@@ -205,6 +205,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "bagua-kai-backend"
+version = "0.0.0"
+dependencies = [
+ "argparse",
+ "bagua-core-internal",
+ "bagua-store",
+ "nix",
+ "parking_lot",
+ "prost",
+ "tokio",
+ "tonic",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "bagua-store"
 version = "0.1.0"
 dependencies = [

@@ -3,6 +3,7 @@ workspace = { members=[
     "bagua-core-py",
     "bagua-core-c",
     "bagua-store",
+    "bagua-kai-backend",
 
     # Internal
     "examples",
