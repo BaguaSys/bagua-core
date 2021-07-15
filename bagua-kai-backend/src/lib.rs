@@ -262,10 +262,10 @@ mod tests {
                 }
                 ForkResult::Child => {
                     println!("gpu_setting={:?}", gpu_setting);
-                    let memory_holder = Vec::new();
+                    let mut memory_holder = Vec::new();
                     let mut tensors = Vec::new();
                     for device_id in gpu_setting.clone() {
-                        let ptr: u64 = 0;
+                        let mut ptr: u64 = 0;
                         unsafe {
                             cuda_set_device(device_id as u64);
 
@@ -319,7 +319,7 @@ mod tests {
                                     &tensor,
                                     0,
                                     Arc::new(move || {
-                                        let result: f32 = 0.;
+                                        let mut result: f32 = 0.;
                                         unsafe {
                                             cuda_set_device(device_id_clone as u64);
                                             let host_x: f32 = 0.;
