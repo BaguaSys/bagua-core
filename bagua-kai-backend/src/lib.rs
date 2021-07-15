@@ -265,7 +265,8 @@ mod tests {
                     let memory_holder = Vec::new();
                     let mut tensors = Vec::new();
                     for device_id in gpu_setting.clone() {
-                        let ptr = unsafe {
+                        let ptr: u64 = 0;
+                        unsafe {
                             cuda_set_device(device_id as u64);
 
                             let bytes = 4;
@@ -279,7 +280,7 @@ mod tests {
                                 bytes as i32,
                             );
 
-                            return device_x.ptr;
+                            ptr = device_x.ptr;
                         };
                         tensors.push(BaguaTensor::new(
                             "tensor-1".to_string(),
@@ -318,7 +319,8 @@ mod tests {
                                     &tensor,
                                     0,
                                     Arc::new(move || {
-                                        let result = unsafe || {
+                                        let result: f32 = 0.;
+                                        unsafe {
                                             cuda_set_device(device_id_clone as u64);
                                             let host_x: f32 = 0.;
                                             let host_x_ptr: *const f32 = &host_x;
@@ -328,7 +330,7 @@ mod tests {
                                                 4,
                                             );
 
-                                            host_x
+                                            result = host_x;
                                         };
 
                                         assert_eq!(result, 3.5);
