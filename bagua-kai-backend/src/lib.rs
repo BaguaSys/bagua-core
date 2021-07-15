@@ -319,8 +319,7 @@ mod tests {
                                     &tensor,
                                     0,
                                     Arc::new(move || {
-                                        let mut result: f32 = 0.;
-                                        unsafe {
+                                        let result = || unsafe {
                                             cuda_set_device(device_id_clone as u64);
                                             let host_x: f32 = 0.;
                                             let host_x_ptr: *const f32 = &host_x;
@@ -330,7 +329,7 @@ mod tests {
                                                 4,
                                             );
 
-                                            result = host_x;
+                                            host_x
                                         };
 
                                         assert_eq!(result, 3.5);
@@ -343,7 +342,7 @@ mod tests {
                     }
 
                     for worker in workers {
-                        worker.join();
+                        worker.join().unwrap();
                     }
                     thread::sleep(time::Duration::from_secs(5));
                     std::process::exit(0);
