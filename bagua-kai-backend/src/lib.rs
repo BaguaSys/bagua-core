@@ -145,14 +145,13 @@ impl BaguaSingleBackendForKAI {
         &mut self,
         buckets: &[&BaguaBucket],
     ) {
-        for (i, bucket) in buckets.enumerate() {
+        self.backend.register_ordered_buckets(buckets).unwrap();
+        self.bucket_callback = Vec::with_capacity(buckets.len());
+        for (i, bucket) in buckets.iter().enumerate() {
             for tensor in bucket.inner.read().tensors {
                 self.tensor_name_to_bucket_id.insert(tensor.name(), i);
             }
-        }
-        self.backend.register_ordered_buckets(buckets).unwrap();
-        self.bucket_callback = Vec::with_capacity(buckets.len());
-        for (i, bucket) in buckets.enumerate() {
+
             bucket.append_centralized_synchronous_op(
                 Some(&self.comm),
                 Some(&self.comm),
@@ -218,7 +217,7 @@ impl BaguaSingleBackendForKAI {
         for bucket in &buckets {
             buckets_ref.push(bucket);
         }
-        self.register_ordered_buckets(buckets_ref);
+        self.register_ordered_buckets(&buckets_ref);
     }
 
     pub fn mark_tensor_ready(&mut self, tensor: &BaguaTensor, ready_cuda_event_ptr: u64) {
@@ -293,7 +292,7 @@ mod tests {
                             cuda_memcpy_host_to_device_sync(device_x.ptr, &host_x as u64, bytes);
 
                             return x.ptr;
-                        }
+                        };
                         tensors.push(BaguaTensor::new(
                             "tensor-1".to_string(),
                             device_id,
