@@ -1,5 +1,3 @@
-pub mod backend;
-
 use crate::backend::BaguaSingleBackendForKAI;
 use bagua_core_internal::{
     datatypes::{BaguaBucket, BaguaTensor, BaguaTensorDtype},

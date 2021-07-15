@@ -1,5 +1,3 @@
-extern crate argparse;
-
 use std::{sync::Arc, time};
 use tokio::runtime::Runtime;
 
