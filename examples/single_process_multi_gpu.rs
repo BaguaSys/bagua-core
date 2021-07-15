@@ -94,7 +94,7 @@ pub struct BaguaSingleBackendForKAI {
         std::thread::JoinHandle<()>,
         tokio::sync::oneshot::Sender<()>,
     )>,
-    pub bucket_callback: Vec<Arc<Fn()>>,
+    pub bucket_callback: Vec<Arc<Fn() + 'static>>,
     pub tensor_name_to_bucket_id: std::collections::HashMap<String, i32>,
 }
 
