@@ -279,7 +279,7 @@ mod tests {
                                 bytes as i32,
                             );
 
-                            return x.ptr;
+                            return device_x.ptr;
                         };
                         tensors.push(BaguaTensor::new(
                             "tensor-1".to_string(),
@@ -294,7 +294,6 @@ mod tests {
                     for (i, device_id) in gpu_setting.iter().enumerate() {
                         let device_id_clone = device_id.clone();
                         let master_addr_clone = master_addr.clone();
-                        let autotune_service_addr_clone = autotune_service_addr.clone();
                         let tensor = tensors[i].clone();
                         workers.push(std::thread::spawn(move || {
                             let mut backend4kai = BaguaSingleBackendForKAI::new(
@@ -316,10 +315,10 @@ mod tests {
                             for tensor in tensor_list {
                                 let ptr = tensor.inner.read().raw.data_ptr();
                                 backend4kai.allreduce(
-                                    tensor,
+                                    &tensor,
                                     0,
                                     Arc::new(move || {
-                                        let result = unsafe {
+                                        let result = unsafe || {
                                             cuda_set_device(device_id_clone as u64);
                                             let host_x: f32 = 0.;
                                             let host_x_ptr: *const f32 = &host_x;
@@ -329,7 +328,7 @@ mod tests {
                                                 4,
                                             );
 
-                                            return host_x;
+                                            host_x
                                         };
 
                                         assert_eq!(result, 3.5);
