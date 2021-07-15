@@ -10,7 +10,7 @@ use std::{
     sync::Arc,
     collections::HashMap,
     thread, time,
-}
+};
 use tokio::runtime::Runtime;
 use tracing;
 use tracing::{info, Level};
