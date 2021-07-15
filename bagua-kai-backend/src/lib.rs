@@ -7,24 +7,17 @@ use tracing;
 use tracing::{info, Level};
 use tracing_subscriber;
 
-
 use bagua_core_internal::{
     communicators::{BaguaCommOpConfig, BaguaSingleCommunicator},
+    cuda_utils::{
+        cuda_memcpy_device_to_host_sync, cuda_memcpy_host_to_device_sync, cuda_set_device,
+    },
     datatypes::{BaguaBucket, BaguaTensor, BaguaTensorDtype},
     resource_pool::CudaMemory,
-    telemetry::{
-        BaguaCommCoreTelemetry, RegisterTensorsRequest, TensorDeclaration,
-    },
-    cuda_utils::{
-        cuda_memcpy_device_to_host_sync,
-        cuda_memcpy_host_to_device_sync,
-        
-        cuda_set_device,
-    },
-    BaguaCommBackend, BaguaCommOpChannels
+    telemetry::{BaguaCommCoreTelemetry, RegisterTensorsRequest, TensorDeclaration},
+    BaguaCommBackend, BaguaCommOpChannels,
 };
 use bagua_store::{BaguaKvStore, BaguaKvStoreServer, KvStoreService};
-
 
 fn init_process_group(
     rank: usize,
@@ -141,10 +134,7 @@ impl BaguaSingleBackendForKAI {
         }
     }
 
-    pub fn register_ordered_buckets(
-        &mut self,
-        buckets: &[&BaguaBucket],
-    ) {
+    pub fn register_ordered_buckets(&mut self, buckets: &[&BaguaBucket]) {
         self.backend.register_ordered_buckets(buckets).unwrap();
         self.bucket_callback = Vec::with_capacity(buckets.len());
         for (i, bucket) in buckets.iter().enumerate() {
@@ -337,7 +327,7 @@ mod tests {
                                         let host_x: f32 = 0.;
                                         let host_x_ptr: *const f32 = &host_x;
                                         cuda_memcpy_device_to_host_sync(host_x_ptr as u64, ptr, 4);
-                                        
+
                                         return host_x;
                                     };
 
@@ -348,7 +338,7 @@ mod tests {
                             return backend4kai;
                         }));
                     }
-    
+
                     for worker in workers {
                         worker.join();
                     }
@@ -357,7 +347,7 @@ mod tests {
                 }
             }
         }
-    
+
         for child_id in child_id_list {
             waitpid(child_id, None).unwrap();
         }
