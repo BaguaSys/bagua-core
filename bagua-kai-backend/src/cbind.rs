@@ -10,7 +10,7 @@ pub fn cstr_to_str(c_s: *const c_char, size: usize) -> &'static str {
 }
 
 pub fn str_to_bagua_tensor_dtype(dtype: &str) -> Result<BaguaTensorDtype, String> {
-    match dtype.to_lowercase() {
+    match dtype.to_lowercase().as_str() {
         "f32" => Ok(BaguaTensorDtype::F32),
         "f16" => Ok(BaguaTensorDtype::F16),
         "i64" => Ok(BaguaTensorDtype::I64),
@@ -41,7 +41,7 @@ pub extern "C" fn bagua_tensor_c_create(
             device_id,
             ptr,
             num_elem,
-            str_to_bagua_tensor_dtype(dtype_str).unwrap(),
+            str_to_bagua_tensor_dtype(dtype_str.as_str()).unwrap(),
             ready_cuda_event_ptr,
         ),
     };
