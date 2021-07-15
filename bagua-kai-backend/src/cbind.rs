@@ -9,15 +9,13 @@ pub fn cstr_to_str(c_s: *const c_char, size: usize) -> &'static str {
     unsafe { str::from_utf8_unchecked(slice::from_raw_parts(c_s as *const u8, size)) }
 }
 
-pub fn str_to_bagua_tensor_dtype(dtype &str) -> Result<BaguaTensorDtype, Box<dyn std::error::Error>> {
+pub fn str_to_bagua_tensor_dtype(dtype: &str) -> Result<BaguaTensorDtype, String> {
     match dtype.to_lowercase() {
-        "f32" => BaguaTensorDtype::F32,
-        "f16" => BaguaTensorDtype::F16,
-        "i64" => BaguaTensorDtype::I64,
-        "u8" => BaguaTensorDtype::U8,
-        _ => {
-            Err(Box::new(std::error::Error(format!("Invalid dtype={}", dtype))))
-        }
+        "f32" => Ok(BaguaTensorDtype::F32),
+        "f16" => Ok(BaguaTensorDtype::F16),
+        "i64" => Ok(BaguaTensorDtype::I64),
+        "u8" => Ok(BaguaTensorDtype::U8),
+        _ => Err(format!("Invalid dtype={}", dtype)),
     }
 }
 
@@ -182,9 +180,9 @@ pub extern "C" fn bagua_single_backend_for_kai_c_register_tensors(
 
     unsafe {
         (*ptr).inner.lock().register_tensors(
-            cstr_to_str(model_name_ptr, model_name_size),
+            cstr_to_str(model_name_ptr, model_name_size).to_string(),
             tensors,
-            cstr_to_str(autotune_service_addr_ptr, autotune_service_addr_size),
+            cstr_to_str(autotune_service_addr_ptr, autotune_service_addr_size).to_string(),
             autotune_service_port,
         );
     };
@@ -205,7 +203,7 @@ pub extern "C" fn bagua_single_backend_for_kai_c_allreduce(
 
     unsafe {
         (*ptr).inner.lock().allreduce(
-            &(tensor.inner),
+            &((*tensor).inner),
             ready_cuda_event_ptr,
             Arc::new(move || {
                 callback();
