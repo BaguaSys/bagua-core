@@ -334,31 +334,4 @@ impl BaguaCommBackend {
         });
         Ok(())
     }
-
-
-    pub fn schedule_python_op(&self, comm_op: Arc<dyn CommOpTrait + Send + Sync>) -> Result<(), BaguaCoreError> {
-        let event_channel = BaguaEventChannel::new("sched_python_op");
-    
-        unsafe {
-            cpp::cpp!([]
-            {
-                CUDACHECK(cudaDeviceSynchronize());
-            });
-        }
-
-        self.channels
-            .schedule_channel_sender
-            .send(BaguaScheduledCommOp {
-                name: format!("sched python op"),
-                ops: vec![comm_op],
-                bucket: self.ordered_buckets.front().unwrap().clone(),
-                event_channel: event_channel.clone(),
-            })
-            .map_err(|e| BaguaCoreError::InternalChannelError(format!("{:?}", e)))?;
-        Ok(self
-            .channels
-            .not_waited_events_sender
-            .send(event_channel)
-            .map_err(|e| BaguaCoreError::InternalChannelError(format!("{:?}", e)))?)
-    }
 }

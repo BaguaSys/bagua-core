@@ -4,14 +4,12 @@ use bagua_core_internal::communicators::BaguaSingleCommunicator;
 use bagua_core_internal::datatypes::{
     BaguaBucket, BaguaReductionOp, BaguaTensor, BaguaTensorDtype,
 };
-use bagua_core_internal::comm_ops::python_ffi_op::PythonFFIOp;
 use bagua_core_internal::BaguaCommBackend;
 use num_traits::FromPrimitive;
 use numpy::{IntoPyArray, PyArray1};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::PyNativeType;
-use std::sync::Arc;
 
 #[pyclass(dict)]
 pub struct BaguaSingleCommunicatorPy {
@@ -288,12 +286,6 @@ impl BaguaCommBackendPy {
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
     
-    pub fn schedule_python_op(&self, op: &PyAny, py: Python) -> PyResult<()> {
-        assert!(op.is_callable(), "python op should be a callable");
-        let pyop: pyo3::Py<pyo3::PyAny> = op.into_py(op.py());
-        py.allow_threads(|| self.inner.schedule_python_op(Arc::new(PythonFFIOp { py_callable: pyop })))
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
-    }
 }
 
 #[pyclass(dict)]
@@ -360,10 +352,7 @@ impl BaguaBucketPy {
         hierarchical: bool,
         peer_selection_mode: String,
         communication_interval: usize,
-        compression: Option<String>,
-        weight: Option<PyRef<BaguaTensorPy>>,
-        left_peer_weight: Option<PyRef<BaguaTensorPy>>,
-        right_peer_weight: Option<PyRef<BaguaTensorPy>>,
+        peer_weight: PyRef<BaguaTensorPy>,
     ) -> PyResult<()> {
         self.inner.append_decentralized_synchronous_op(
             communicator_internode.map(|x| &x.inner),
@@ -371,14 +360,38 @@ impl BaguaBucketPy {
             hierarchical,
             peer_selection_mode,
             communication_interval,
-            compression,
-            weight.map(|x| (*x).inner.clone()),
-            left_peer_weight.map(|x| (*x).inner.clone()),
-            right_peer_weight.map(|x| (*x).inner.clone()),
+            (*peer_weight).inner.clone(),
         );
         Ok(())
     }
     
+    #[args(hierarchical = "false", communication_interval = "1")]
+    pub fn append_low_precision_decentralized_synchronous_op(
+        &mut self,
+        communicator_internode: Option<&BaguaSingleCommunicatorPy>,
+        communicator_intranode: Option<&BaguaSingleCommunicatorPy>,
+        hierarchical: bool,
+        peer_selection_mode: String,
+        communication_interval: usize,
+        compression: String,
+        weight: PyRef<BaguaTensorPy>,
+        left_peer_weight: PyRef<BaguaTensorPy>,
+        right_peer_weight: PyRef<BaguaTensorPy>,
+    ) -> PyResult<()> {
+        self.inner.append_low_precision_decentralized_synchronous_op(
+            communicator_internode.map(|x| &x.inner),
+            communicator_intranode.map(|x| &x.inner),
+            hierarchical,
+            peer_selection_mode,
+            communication_interval,
+            compression,
+            (*weight).inner.clone(),
+            (*left_peer_weight).inner.clone(),
+            (*right_peer_weight).inner.clone(),
+        );
+        Ok(())
+    }
+
     pub fn print_ops(&self) -> PyResult<()> {
         println!("{:?}", self.inner.inner.lock().comm_ops);
         Ok(())
