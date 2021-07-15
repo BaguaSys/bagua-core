@@ -1,3 +1,6 @@
+use std::{str, slice};
+use libc::c_char;
+
 use crate::backend::BaguaSingleBackendForKAI;
 use bagua_core_internal::{
     datatypes::{BaguaBucket, BaguaTensor, BaguaTensorDtype},
