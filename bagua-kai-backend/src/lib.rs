@@ -274,13 +274,14 @@ mod tests {
                     let mut tensors = Vec::new();
                     for device_id in gpu_setting.clone() {
                         let ptr = unsafe {
-                            cuda_set_device(device_id);
+                            cuda_set_device(device_id as u64);
 
                             let bytes = 4;
                             let device_x = Arc::new(CudaMemory::new(bytes));
                             memory_holder.push(device_x.clone());
                             let host_x = device_id as f32;
-                            cuda_memcpy_host_to_device_sync(device_x.ptr, &host_x as u64, bytes);
+                            let host_x_ptr: *const f32 = &host_x;
+                            cuda_memcpy_host_to_device_sync(device_x.ptr, host_x_ptr as u64, bytes as i32);
 
                             return x.ptr;
                         };
@@ -312,15 +313,14 @@ mod tests {
                             for tensor in &tensor_list {
                                 tensors_ref.push(tensor);
                             }
-                            let bucket = BaguaBucket::new(tensors_ref.as_slice(), "bucket-1");
-                            let buckets = vec![bucket];
-                            backend4kai.register_ordered_buckets(buckets);
+                            let bucket = BaguaBucket::new(tensors_ref.as_slice(), "bucket-1").unwrap();
+                            backend4kai.register_ordered_buckets(vec![bucket]);
 
                             for tensor in tensor_list {
                                 let ptr = tensor.inner.read().raw.data_ptr();
-                                backend4kai.allreduce(tensor, 0, Arc::new(move || {
+                                backend4kai.allreduce(&tensor, 0, Arc::new(move || {
                                     let result = unsafe {
-                                        cuda_set_device(device_id_clone);
+                                        cuda_set_device(device_id_clone as u64);
                                         let host_x: f32 = 0.;
                                         let host_x_ptr: *const f32 = &host_x;
                                         cuda_memcpy_device_to_host_sync(host_x_ptr as u64, ptr, 4);
