@@ -193,7 +193,8 @@ pub extern "C" fn bagua_single_backend_for_kai_c_register_tensors(
 #[no_mangle]
 pub extern "C" fn bagua_single_backend_for_kai_c_allreduce(
     ptr: *mut BaguaSingleBackendForKAIC,
-    tensor: *mut BaguaTensorC,
+    input_tensor: *mut BaguaTensorC,
+    output_tensor: *mut BaguaTensorC,
     ready_cuda_event_ptr: u64,
     callback: extern "C" fn(u64),
     callback_args: u64,
@@ -204,7 +205,8 @@ pub extern "C" fn bagua_single_backend_for_kai_c_allreduce(
 
     unsafe {
         (*ptr).inner.lock().allreduce(
-            &((*tensor).inner),
+            &((*input_tensor).inner),
+            &((*output_tensor).inner),
             ready_cuda_event_ptr,
             Arc::new(move || {
                 callback(callback_args);

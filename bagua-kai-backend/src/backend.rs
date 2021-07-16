@@ -1,13 +1,17 @@
 use std::{sync::Arc, time};
 use tokio::runtime::Runtime;
 
-use bagua_core_internal::{
+use crate::{
     communicators::{BaguaCommOpConfig, BaguaSingleCommunicator},
     datatypes::{BaguaBucket, BaguaTensor, BaguaTensorDtype},
     telemetry::{BaguaCommCoreTelemetry, RegisterTensorsRequest, TensorDeclaration},
     BaguaCommBackend, BaguaCommOpChannels,
+    resource_pool::{CudaMemory, CUDA_DEVICE_MEMORY_POOL},
+    cuda_utils::cuda_memcpy_D2D_async,
 };
 use bagua_store::{BaguaKvStore, BaguaKvStoreServer, KvStoreService};
+
+use sized_object_pool::DynamicPoolItem;;
 
 fn init_process_group(
     rank: usize,
@@ -15,6 +19,7 @@ fn init_process_group(
     device_id: usize,
     master_addr: String,
     master_port: i32,
+    cuda_stream_ptr: u64,
 ) -> BaguaSingleCommunicator {
     let mut kv = loop {
         let kv = BaguaKvStore::open(format!("http://{}:{}", master_addr, master_port));
@@ -53,7 +58,7 @@ fn init_process_group(
         device_id,
         nranks,
         device_id,
-        0,
+        cuda_stream_ptr,
         std::str::from_utf8(&nccl_unique_id).unwrap(),
     )
 }
@@ -70,6 +75,9 @@ pub struct BaguaSingleBackendForKAI {
     )>,
     pub bucket_callback: Vec<Arc<dyn Fn() + Send + Sync + 'static>>,
     pub tensor_name_to_bucket_id: std::collections::HashMap<String, usize>,
+    pub tensor_name_to_tmpbuff_address: std::collections::HashMap<String, u64>,
+    pub tmpbuff: DynamicPoolItem<CudaMemory>,
+    pub inner_tensors: std::collections::HashMap<String, BaguaTensor>,
 }
 
 impl BaguaSingleBackendForKAI {
@@ -81,6 +89,7 @@ impl BaguaSingleBackendForKAI {
         device_id: usize,
         master_addr: String,
         master_port: i32,
+        cuda_stream_ptr: u64,
     ) -> BaguaSingleBackendForKAI {
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
         let service_addr = format!("{}:{}", master_addr.clone(), master_port);
@@ -116,7 +125,7 @@ impl BaguaSingleBackendForKAI {
                 BaguaSingleBackendForKAI::BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP,
                 device_id,
             ),
-            comm: init_process_group(rank, nranks, device_id, master_addr, master_port),
+            comm: init_process_group(rank, nranks, device_id, master_addr, master_port, cuda_stream_ptr),
             kv_store: kv_store,
             bucket_callback: vec![],
             tensor_name_to_bucket_id: Default::default(),
@@ -160,6 +169,12 @@ impl BaguaSingleBackendForKAI {
         autotune_service_addr: String,
         autotune_service_port: i32,
     ) {
+        let total_bytes = (&tensors).iter().map(|b| b.bytes()).sum();
+        self.tmpbuff = CUDA_DEVICE_MEMORY_POOL[self.device_id]
+            .try_pull(total_bytes)
+            .expect("cannot allocate gpu memory");
+        let mut tmpbuff_ptr = tmpbuff.ptr;
+
         let telemetry = BaguaCommCoreTelemetry::new(&*format!(
             "{}:{}",
             autotune_service_addr, autotune_service_port
@@ -181,15 +196,30 @@ impl BaguaSingleBackendForKAI {
         let rsp = telemetry.register_tensors(req).unwrap();
         let mut buckets = Vec::new();
         println!("buckets={:?}", rsp.recommended_hyperparameters.buckets);
+        self.inner_tensors.clear();
         for (i, td_bucket) in rsp.recommended_hyperparameters.buckets.iter().enumerate() {
             let mut tensors_ref = Vec::<&BaguaTensor>::new();
             for td_tensor in td_bucket.iter() {
-                let t: Vec<&BaguaTensor> = tensors
+                let input_t: Vec<&BaguaTensor> = tensors
                     .iter()
                     .filter(|t| t.name() == td_tensor.name)
                     .collect();
-                tensors_ref.extend(t);
+                self.inner_tensors.insert(input_t.name(), BaguaTensor::new(
+                    input_t.name(),
+                    self.device_id,
+                    tmpbuff_ptr,
+                    input_t.num_elements(),
+                    input_t.dtype(),
+                    0,
+                ));
+
+                tensors_ref.extend(
+                    self.inner_tensors.get(t.name()).unwrap()
+                );
+
+                tmpbuff_ptr += t.bytes();
             }
+
             let bucket =
                 BaguaBucket::new(tensors_ref.as_slice(), &*format!("bucket-{}", i)).unwrap();
             for t in tensors_ref {
@@ -200,7 +230,7 @@ impl BaguaSingleBackendForKAI {
         self.register_ordered_buckets(buckets);
     }
 
-    pub fn allreduce(
+    pub fn allreduce_inplace(
         &mut self,
         tensor: &BaguaTensor,
         ready_cuda_event_ptr: u64,
@@ -210,6 +240,47 @@ impl BaguaSingleBackendForKAI {
         let raw_callback = self.bucket_callback[bucket_id].clone();
         let new_callback = Arc::new(move || {
             raw_callback();
+            callback();
+        });
+        self.bucket_callback[bucket_id] = new_callback;
+
+        self.backend
+            .mark_communication_ready(tensor, ready_cuda_event_ptr)
+            .unwrap();
+    }
+
+    pub fn allreduce(
+        &mut self,
+        input_tensor: &BaguaTensor,
+        output_tensor: &BaguaTensor,
+        ready_cuda_event_ptr: u64,
+        callback: Arc<dyn Fn() + Send + Sync + 'static>,
+    ) {
+        let comm_stream_ptr = self.comm.stream_ptr;
+
+        let inner_tensor = self.inner_tensors.get(input_tensor.name()).unwrap();
+        unsafe {
+            cuda_memcpy_D2D_async(
+                inner_tensor.data_ptr(),
+                input_tensor.data_ptr(),
+                input_tensor.bytes(),
+                comm_stream_ptr,
+                ready_cuda_event_ptr);
+        }
+
+        let bucket_id = *self.tensor_name_to_bucket_id.get(&tensor.name()).unwrap();
+        let raw_callback = self.bucket_callback[bucket_id].clone();
+        let output_tensor_clone = output_tensor.clone();
+        let new_callback = Arc::new(move || {
+            raw_callback();
+
+            cuda_memcpy_D2D_async(
+                output_tensor_clone.data_ptr(),
+                inner_tensor.data_ptr(),
+                inner_tensor.bytes(),
+                cuda_stream_ptr,
+                0);
+
             callback();
         });
         self.bucket_callback[bucket_id] = new_callback;

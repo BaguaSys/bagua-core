@@ -908,6 +908,10 @@ impl BaguaTensor {
     pub fn dtype(&self) -> String {
         format!("{:?}", self.inner.read().raw.dtype())
     }
+
+    pub fn bytes(&self) -> usize {
+        return self.num_elements() * self.inner.read().raw.dtype().bytes();
+    }
 }
 
 #[derive(Debug)]
@@ -1236,5 +1240,9 @@ impl BaguaBucket {
             .tensors
             .iter()
             .for_each(|x| x.mark_comm_not_ready());
+    }
+
+    pub fn bytes(&self) -> usize {
+        self.tensors.iter().map(|t| t.bytes()).sum()
     }
 }
