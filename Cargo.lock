@@ -215,6 +215,7 @@ dependencies = [
  "nix",
  "parking_lot",
  "prost",
+ "sized-object-pool",
  "tokio",
  "tonic",
  "tracing",

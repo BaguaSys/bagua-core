@@ -20,6 +20,7 @@ tokio = { version = "1.8.0", features = ["full"] }
 argparse = "0.2.2"
 tracing = "0.1"
 tracing-subscriber = "0.2"
+sized-object-pool = "0.2"
 
 [dev-dependencies]
 nix = { version = "0.8" }
