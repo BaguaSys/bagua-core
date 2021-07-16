@@ -354,9 +354,10 @@ mod tests {
                 ForkResult::Child => {
                     println!("gpu_setting={:?}", gpu_setting);
                     let mut memory_holder = Vec::new();
-                    let mut tensors = Vec::new();
+                    let mut io_tensors = Vec::new();
+                    let tensor_name = "tensor-1".to_string();
                     for device_id in gpu_setting.clone() {
-                        let ptr = unsafe {
+                        let input_ptr = unsafe {
                             cuda_set_device(device_id as u64);
 
                             let bytes = 4;
@@ -372,20 +373,40 @@ mod tests {
 
                             device_x.ptr;
                         };
-                        tensors.push(BaguaTensor::new(
-                            "tensor-1".to_string(),
-                            device_id,
-                            ptr,
-                            1,
-                            BaguaTensorDtype::F32,
-                            0,
+                        let output_ptr = unsafe {
+                            cuda_set_device(device_id as u64);
+
+                            let bytes = 4;
+                            let device_x = Arc::new(CudaMemory::new(bytes));
+                            memory_holder.push(device_x.clone());
+
+                            device_x.ptr
+                        };
+
+                        io_tensors.push((
+                            BaguaTensor::new(
+                                tensor_name,
+                                device_id,
+                                input_ptr,
+                                1,
+                                BaguaTensorDtype::F32,
+                                0,
+                            ),
+                            BaguaTensor::new(
+                                tensor_name,
+                                device_id,
+                                output_ptr,
+                                1,
+                                BaguaTensorDtype::F32,
+                                0,
+                            ),
                         ));
                     }
                     let mut workers = Vec::new();
                     for (i, device_id) in gpu_setting.iter().enumerate() {
                         let device_id_clone = device_id.clone();
                         let master_addr_clone = master_addr.clone();
-                        let tensor = tensors[i].clone();
+                        let in_and_out = io_tensors[i].clone();
                         workers.push(std::thread::spawn(move || {
                             let mut backend4kai = BaguaSingleBackendForKAI::new(
                                 device_id_clone,
@@ -393,20 +414,22 @@ mod tests {
                                 device_id_clone,
                                 master_addr_clone,
                                 master_port,
+                                0,
                             );
-                            let tensor_list = vec![tensor.clone()];
+                            let io_list = vec![in_and_out.clone()];
                             let mut tensors_ref = Vec::new();
-                            for tensor in &tensor_list {
-                                tensors_ref.push(tensor);
+                            for in_and_out in &io_list {
+                                tensors_ref.push(&(in_and_out.0));
                             }
                             let bucket =
                                 BaguaBucket::new(tensors_ref.as_slice(), "bucket-1").unwrap();
                             backend4kai.register_ordered_buckets(vec![bucket]);
 
-                            for tensor in tensor_list {
-                                let ptr = tensor.inner.read().raw.data_ptr();
+                            for in_and_out in io_list {
+                                let ptr = in_and_out.1.inner.read().raw.data_ptr();
                                 backend4kai.allreduce(
-                                    &tensor,
+                                    &(in_and_out.0),
+                                    &(in_and_out.1),
                                     0,
                                     Arc::new(move || {
                                         let result = unsafe {
