@@ -135,7 +135,7 @@ impl BaguaSingleBackendForKAI {
             kv_store: kv_store,
             bucket_callback: vec![],
             tensor_name_to_bucket_id: Default::default(),
-            tmpbuff: CUDA_DEVICE_MEMORY_POOL[self.device_id]
+            tmpbuff: CUDA_DEVICE_MEMORY_POOL[device_id]
                 .try_pull(1)
                 .expect("cannot allocate gpu memory"),
             inner_tensors: Default::default(),
@@ -262,7 +262,7 @@ impl BaguaSingleBackendForKAI {
         self.bucket_callback[bucket_id] = new_callback;
 
         self.backend
-            .mark_communication_ready(tensor, ready_cuda_event_ptr)
+            .mark_communication_ready(&tensor, ready_cuda_event_ptr)
             .unwrap();
     }
 
