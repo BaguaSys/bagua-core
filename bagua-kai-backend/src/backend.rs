@@ -75,7 +75,7 @@ pub struct BaguaSingleBackendForKAI {
     )>,
     pub bucket_callback: Vec<Arc<dyn Fn() + Send + Sync + 'static>>,
     pub tensor_name_to_bucket_id: std::collections::HashMap<String, usize>,
-    pub tmpbuff: DynamicPoolItem<CudaMemory>,
+    pub tmpbuff: Arc<DynamicPoolItem<CudaMemory>>,
     pub inner_tensors: std::collections::HashMap<String, BaguaTensor>,
 }
 
@@ -178,9 +178,11 @@ impl BaguaSingleBackendForKAI {
         autotune_service_port: i32,
     ) {
         let total_bytes = (&tensors).iter().map(|b| b.bytes()).sum();
-        self.tmpbuff = CUDA_DEVICE_MEMORY_POOL[self.device_id]
-            .try_pull(total_bytes)
-            .expect("cannot allocate gpu memory");
+        self.tmpbuff = Arc::new(
+            CUDA_DEVICE_MEMORY_POOL[self.device_id]
+                .try_pull(total_bytes)
+                .expect("cannot allocate gpu memory"),
+        );
         let mut tmpbuff_ptr = self.tmpbuff.ptr;
 
         let telemetry = BaguaCommCoreTelemetry::new(&*format!(
@@ -212,7 +214,12 @@ impl BaguaSingleBackendForKAI {
                     .iter()
                     .filter(|t| t.name() == td_tensor.name)
                     .collect();
-                assert_eq!(filter_list.len(), 1, "Invalid filter_list={:?}", filter_list);
+                assert_eq!(
+                    filter_list.len(),
+                    1,
+                    "Invalid filter_list={:?}",
+                    filter_list
+                );
                 let input_tensor = filter_list[0];
                 self.inner_tensors.insert(
                     input_tensor.name(),
@@ -276,10 +283,13 @@ impl BaguaSingleBackendForKAI {
                 input_tensor.bytes(),
                 comm_stream_ptr,
                 ready_cuda_event_ptr,
-            );
-        }
+            )
+        };
 
-        let bucket_id = *self.tensor_name_to_bucket_id.get(&input_tensor.name()).unwrap();
+        let bucket_id = *self
+            .tensor_name_to_bucket_id
+            .get(&input_tensor.name())
+            .unwrap();
         let raw_callback = self.bucket_callback[bucket_id].clone();
         let output_tensor_clone = output_tensor.clone();
         let new_callback = Arc::new(move || {
