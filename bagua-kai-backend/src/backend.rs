@@ -222,13 +222,13 @@ impl BaguaSingleBackendForKAI {
                 );
                 let input_tensor = filter_list[0];
                 self.inner_tensors.insert(
-                    input_tensor.name(),
+                    input_tensor.name().clone(),
                     BaguaTensor::new(
-                        input_tensor.name(),
+                        input_tensor.name().clone(),
                         self.device_id,
                         tmpbuff_ptr,
-                        input_tensor.num_elements(),
-                        input_tensor.inner.read().raw.dtype(),
+                        input_tensor.num_elements().clone(),
+                        input_tensor.inner.read().raw.dtype().clone(),
                         0,
                     ),
                 );
@@ -296,16 +296,19 @@ impl BaguaSingleBackendForKAI {
             .unwrap();
         let raw_callback = self.bucket_callback[bucket_id].clone();
         let output_tensor_clone = output_tensor.clone();
+        let inner_tensor_clone = inner_tensor.clone();
         let new_callback = Arc::new(move || {
             raw_callback();
 
-            cuda_memcpy_D2D_async(
-                output_tensor_clone.data_ptr(),
-                inner_tensor.data_ptr(),
-                inner_tensor.bytes(),
-                comm_stream_ptr,
-                0,
-            );
+            unsafe {
+                cuda_memcpy_D2D_async(
+                    output_tensor_clone.data_ptr(),
+                    inner_tensor_clone.data_ptr(),
+                    inner_tensor_clone.bytes(),
+                    comm_stream_ptr,
+                    0,
+                );
+            }
 
             callback();
         });
@@ -461,7 +464,7 @@ mod tests {
                     for worker in workers {
                         worker.join().unwrap();
                     }
-                    thread::sleep(time::Duration::from_secs(5));
+                    std::thread::sleep(time::Duration::from_secs(5));
                     std::process::exit(0);
                 }
             }
