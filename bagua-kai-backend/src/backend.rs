@@ -136,6 +136,8 @@ impl BaguaSingleBackendForKAI {
             kv_store: kv_store,
             bucket_callback: vec![],
             tensor_name_to_bucket_id: Default::default(),
+            tmpbuff: Default::default(),
+            inner_tensors: Default::default(),
         }
     }
 
@@ -207,24 +209,26 @@ impl BaguaSingleBackendForKAI {
         for (i, td_bucket) in rsp.recommended_hyperparameters.buckets.iter().enumerate() {
             let mut tensors_ref = Vec::<&BaguaTensor>::new();
             for td_tensor in td_bucket.iter() {
-                let input_t: Vec<&BaguaTensor> = tensors
+                let filter_list: Vec<&BaguaTensor> = tensors
                     .iter()
                     .filter(|t| t.name() == td_tensor.name)
                     .collect();
+                assert_eq!(filter_list.len(), 1, format!("Invalid filter_list={:?}", filter_list));
+                let input_tensor = filter_list[0];
                 self.inner_tensors.insert(
-                    input_t.name(),
+                    input_tensor.name(),
                     BaguaTensor::new(
-                        input_t.name(),
+                        input_tensor.name(),
                         self.device_id,
                         tmpbuff_ptr,
-                        input_t.num_elements(),
-                        input_t.dtype(),
+                        input_tensor.num_elements(),
+                        input_tensor.dtype(),
                         0,
                     ),
                 );
 
-                tensors_ref.extend(self.inner_tensors.get(t.name()).unwrap());
-                tmpbuff_ptr += t.bytes();
+                tensors_ref.push(self.inner_tensors.get(input_tensor.name()).unwrap());
+                tmpbuff_ptr += input_tensor.bytes();
             }
 
             let bucket =
@@ -263,9 +267,9 @@ impl BaguaSingleBackendForKAI {
         ready_cuda_event_ptr: u64,
         callback: Arc<dyn Fn() + Send + Sync + 'static>,
     ) {
-        let comm_stream_ptr = self.comm.stream_ptr;
+        let comm_stream_ptr = self.comm.inner.stream_ptr;
 
-        let inner_tensor = self.inner_tensors.get(input_tensor.name()).unwrap();
+        let inner_tensor = self.inner_tensors.get(&input_tensor.name()).unwrap();
         unsafe {
             cuda_memcpy_D2D_async(
                 inner_tensor.data_ptr(),

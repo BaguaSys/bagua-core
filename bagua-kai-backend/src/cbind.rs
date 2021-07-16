@@ -117,6 +117,7 @@ pub extern "C" fn bagua_single_backend_for_kai_c_create(
     master_addr_ptr: *const c_char,
     master_addr_size: usize,
     master_port: i32,
+    cuda_stream_ptr: u64,
 ) -> *mut BaguaSingleBackendForKAIC {
     let obj = BaguaSingleBackendForKAIC {
         inner: Arc::new(Mutex::new(BaguaSingleBackendForKAI::new(
@@ -125,6 +126,7 @@ pub extern "C" fn bagua_single_backend_for_kai_c_create(
             device_id,
             cstr_to_str(master_addr_ptr, master_addr_size).to_string(),
             master_port,
+            cuda_stream_ptr,
         ))),
     };
 
