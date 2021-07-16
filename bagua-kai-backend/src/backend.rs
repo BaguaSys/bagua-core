@@ -1,17 +1,17 @@
 use std::{sync::Arc, time};
 use tokio::runtime::Runtime;
 
-use crate::{
+use bagua_core_internal::{
     communicators::{BaguaCommOpConfig, BaguaSingleCommunicator},
+    cuda_utils::cuda_memcpy_D2D_async,
     datatypes::{BaguaBucket, BaguaTensor, BaguaTensorDtype},
+    resource_pool::{CudaMemory, CUDA_DEVICE_MEMORY_POOL},
     telemetry::{BaguaCommCoreTelemetry, RegisterTensorsRequest, TensorDeclaration},
     BaguaCommBackend, BaguaCommOpChannels,
-    resource_pool::{CudaMemory, CUDA_DEVICE_MEMORY_POOL},
-    cuda_utils::cuda_memcpy_D2D_async,
 };
 use bagua_store::{BaguaKvStore, BaguaKvStoreServer, KvStoreService};
 
-use sized_object_pool::DynamicPoolItem;;
+use sized_object_pool::DynamicPoolItem;
 
 fn init_process_group(
     rank: usize,
@@ -125,7 +125,14 @@ impl BaguaSingleBackendForKAI {
                 BaguaSingleBackendForKAI::BAGUA_BACKEND_SCHEDULE_CHANNEL_CAP,
                 device_id,
             ),
-            comm: init_process_group(rank, nranks, device_id, master_addr, master_port, cuda_stream_ptr),
+            comm: init_process_group(
+                rank,
+                nranks,
+                device_id,
+                master_addr,
+                master_port,
+                cuda_stream_ptr,
+            ),
             kv_store: kv_store,
             bucket_callback: vec![],
             tensor_name_to_bucket_id: Default::default(),
@@ -204,19 +211,19 @@ impl BaguaSingleBackendForKAI {
                     .iter()
                     .filter(|t| t.name() == td_tensor.name)
                     .collect();
-                self.inner_tensors.insert(input_t.name(), BaguaTensor::new(
+                self.inner_tensors.insert(
                     input_t.name(),
-                    self.device_id,
-                    tmpbuff_ptr,
-                    input_t.num_elements(),
-                    input_t.dtype(),
-                    0,
-                ));
-
-                tensors_ref.extend(
-                    self.inner_tensors.get(t.name()).unwrap()
+                    BaguaTensor::new(
+                        input_t.name(),
+                        self.device_id,
+                        tmpbuff_ptr,
+                        input_t.num_elements(),
+                        input_t.dtype(),
+                        0,
+                    ),
                 );
 
+                tensors_ref.extend(self.inner_tensors.get(t.name()).unwrap());
                 tmpbuff_ptr += t.bytes();
             }
 
@@ -265,7 +272,8 @@ impl BaguaSingleBackendForKAI {
                 input_tensor.data_ptr(),
                 input_tensor.bytes(),
                 comm_stream_ptr,
-                ready_cuda_event_ptr);
+                ready_cuda_event_ptr,
+            );
         }
 
         let bucket_id = *self.tensor_name_to_bucket_id.get(&tensor.name()).unwrap();
@@ -279,7 +287,8 @@ impl BaguaSingleBackendForKAI {
                 inner_tensor.data_ptr(),
                 inner_tensor.bytes(),
                 cuda_stream_ptr,
-                0);
+                0,
+            );
 
             callback();
         });
