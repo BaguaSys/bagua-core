@@ -395,7 +395,7 @@ mod tests {
 
                         io_tensors.push((
                             BaguaTensor::new(
-                                tensor_name,
+                                tensor_name.clone(),
                                 device_id,
                                 input_ptr,
                                 1,
@@ -403,7 +403,7 @@ mod tests {
                                 0,
                             ),
                             BaguaTensor::new(
-                                tensor_name,
+                                tensor_name.clone(),
                                 device_id,
                                 output_ptr,
                                 1,
