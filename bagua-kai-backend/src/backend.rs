@@ -312,7 +312,7 @@ impl BaguaSingleBackendForKAI {
         self.bucket_callback[bucket_id] = new_callback;
 
         self.backend
-            .mark_communication_ready(inner_tensor, ready_cuda_event_ptr)
+            .mark_communication_ready(&inner_tensor, ready_cuda_event_ptr)
             .unwrap();
     }
 }
@@ -375,7 +375,7 @@ mod tests {
                                 bytes as i32,
                             );
 
-                            device_x.ptr;
+                            device_x.ptr
                         };
                         let output_ptr = unsafe {
                             cuda_set_device(device_id as u64);
