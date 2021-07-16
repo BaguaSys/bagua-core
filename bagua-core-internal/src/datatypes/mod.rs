@@ -1243,6 +1243,6 @@ impl BaguaBucket {
     }
 
     pub fn bytes(&self) -> usize {
-        self.tensors.iter().map(|t| t.bytes()).sum()
+        self.inner.lock().tensors.iter().map(|t| t.bytes()).sum()
     }
 }
