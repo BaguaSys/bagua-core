@@ -201,7 +201,6 @@ pub extern "C" fn bagua_single_backend_for_kai_c_allreduce(
     if ptr.is_null() {
         return -1;
     }
-l
 
     unsafe {
         (*ptr).inner.lock().allreduce(
