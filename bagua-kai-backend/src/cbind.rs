@@ -195,12 +195,13 @@ pub extern "C" fn bagua_single_backend_for_kai_c_allreduce(
     ptr: *mut BaguaSingleBackendForKAIC,
     tensor: *mut BaguaTensorC,
     ready_cuda_event_ptr: u64,
-    callback: extern "C" fn(*mut ::libc::c_void),
-    callback_args: *mut ::libc::c_void,
+    callback: extern "C" fn(u64),
+    callback_args: u64,
 ) -> i32 {
     if ptr.is_null() {
         return -1;
     }
+l
 
     unsafe {
         (*ptr).inner.lock().allreduce(
