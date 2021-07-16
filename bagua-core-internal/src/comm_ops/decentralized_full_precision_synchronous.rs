@@ -65,7 +65,7 @@ impl CommOpTrait for DecentralizedFullPrecisionSynchronous {
                             if step % comm_interval == 0 {
                                 peer_tensor.clone_from(&t.raw, c.stream_ptr);
                                 let _guard = NCCLGroupGuard::new();
-                                c.allreduce(peer_tensor, BaguaReductionOp::SUM);
+                                c.allreduce_inplace(peer_tensor, BaguaReductionOp::SUM);
                                 peer_tensor.divide_inplace(stream_ptr, c.nranks as f32);
                             }
                         }
@@ -78,11 +78,13 @@ impl CommOpTrait for DecentralizedFullPrecisionSynchronous {
                                 "you cannot use decentralized algorithm with average_all off when there are odd number of ranks, current n_ranks {}",
                                 c.nranks
                             );
-                            let comm_step = step / comm_interval;
+                            let comm_step = (step / comm_interval) as i64;
+                            let rank = c.rank as i64;
+                            let nranks = c.nranks as i64;
                             let peer_rank = if c.rank < c.nranks / 2 {
-                                ((comm_step + c.rank) % ((c.nranks + 1) / 2)) + (c.nranks / 2)
+                                ((comm_step + rank) % ((nranks + 1) / 2)) + (nranks / 2)
                             } else {
-                                (c.rank - (c.nranks / 2) - comm_step).rem_euclid(c.nranks / 2)
+                                (rank - (nranks / 2) - comm_step).rem_euclid(nranks / 2)
                             } as i32;
                             tracing::debug!("rank {} peer_rank {}", c.rank, peer_rank);
                             {
@@ -94,22 +96,7 @@ impl CommOpTrait for DecentralizedFullPrecisionSynchronous {
                         }
                     },
                     PeerSelectionMode::Ring => {
-                        if step % comm_interval == 0 {
-                            let comm_step = step / comm_interval;
-                            let peer_rank = if (comm_step % 2 == 0) {
-                                (c.rank + 1) % c.nranks
-                            } else {
-                                (c.rank + c.nranks - 1) % c.nranks
-                            } as i32;
-                            
-                            tracing::debug!("rank {} peer_rank {} step {}", c.rank, peer_rank, step);
-                            {
-                                let _guard = NCCLGroupGuard::new();
-                                c.send(&t.raw, peer_rank);
-                                c.recv(peer_tensor, peer_rank);
-                            }
-                            peer_tensor.average_inplace(&t.raw, c.stream_ptr);
-                        }
+                        unimplemented!()
                     },
                 }
             },
