@@ -75,7 +75,7 @@ pub struct BaguaSingleBackendForKAI {
     )>,
     pub bucket_callback: Vec<Arc<dyn Fn() + Send + Sync + 'static>>,
     pub tensor_name_to_bucket_id: std::collections::HashMap<String, usize>,
-    pub tmpbuff: Arc<DynamicPoolItem<CudaMemory>>,
+    pub tmpbuff: DynamicPoolItem<CudaMemory>,
     pub inner_tensors: std::collections::HashMap<String, BaguaTensor>,
 }
 
@@ -135,7 +135,9 @@ impl BaguaSingleBackendForKAI {
             kv_store: kv_store,
             bucket_callback: vec![],
             tensor_name_to_bucket_id: Default::default(),
-            tmpbuff: Default::default(),
+            tmpbuff: CUDA_DEVICE_MEMORY_POOL[self.device_id]
+                .try_pull(1)
+                .expect("cannot allocate gpu memory"),
             inner_tensors: Default::default(),
         }
     }
@@ -178,11 +180,9 @@ impl BaguaSingleBackendForKAI {
         autotune_service_port: i32,
     ) {
         let total_bytes = (&tensors).iter().map(|b| b.bytes()).sum();
-        self.tmpbuff = Arc::new(
-            CUDA_DEVICE_MEMORY_POOL[self.device_id]
-                .try_pull(total_bytes)
-                .expect("cannot allocate gpu memory"),
-        );
+        self.tmpbuff = CUDA_DEVICE_MEMORY_POOL[self.device_id]
+            .try_pull(total_bytes)
+            .expect("cannot allocate gpu memory");
         let mut tmpbuff_ptr = self.tmpbuff.ptr;
 
         let telemetry = BaguaCommCoreTelemetry::new(&*format!(
@@ -275,7 +275,7 @@ impl BaguaSingleBackendForKAI {
     ) {
         let comm_stream_ptr = self.comm.inner.stream_ptr;
 
-        let inner_tensor = self.inner_tensors.get(&input_tensor.name()).unwrap();
+        let inner_tensor = self.inner_tensors.get(&input_tensor.name()).unwrap().clone();
         let ready_cuda_event_ptr = unsafe {
             cuda_memcpy_D2D_async(
                 inner_tensor.data_ptr(),
