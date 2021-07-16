@@ -275,7 +275,11 @@ impl BaguaSingleBackendForKAI {
     ) {
         let comm_stream_ptr = self.comm.inner.stream_ptr;
 
-        let inner_tensor = self.inner_tensors.get(&input_tensor.name()).unwrap().clone();
+        let inner_tensor = self
+            .inner_tensors
+            .get(&input_tensor.name())
+            .unwrap()
+            .clone();
         let ready_cuda_event_ptr = unsafe {
             cuda_memcpy_D2D_async(
                 inner_tensor.data_ptr(),
