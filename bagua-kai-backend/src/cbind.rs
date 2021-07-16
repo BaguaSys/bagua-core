@@ -195,7 +195,8 @@ pub extern "C" fn bagua_single_backend_for_kai_c_allreduce(
     ptr: *mut BaguaSingleBackendForKAIC,
     tensor: *mut BaguaTensorC,
     ready_cuda_event_ptr: u64,
-    callback: extern "C" fn(),
+    callback: extern "C" fn(*mut ::libc::c_void),
+    callback_args: *mut ::libc::c_void,
 ) -> i32 {
     if ptr.is_null() {
         return -1;
@@ -206,7 +207,7 @@ pub extern "C" fn bagua_single_backend_for_kai_c_allreduce(
             &((*tensor).inner),
             ready_cuda_event_ptr,
             Arc::new(move || {
-                callback();
+                callback(callback_args);
             }),
         );
     }
