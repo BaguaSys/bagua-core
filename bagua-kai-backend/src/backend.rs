@@ -213,7 +213,11 @@ impl BaguaSingleBackendForKAI {
                     .iter()
                     .filter(|t| t.name() == td_tensor.name)
                     .collect();
-                assert_eq!(filter_list.len(), 1, format!("Invalid filter_list={:?}", filter_list));
+                assert_eq!(
+                    filter_list.len(),
+                    1,
+                    format!("Invalid filter_list={:?}", filter_list)
+                );
                 let input_tensor = filter_list[0];
                 self.inner_tensors.insert(
                     input_tensor.name(),
