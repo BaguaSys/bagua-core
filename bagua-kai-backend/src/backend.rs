@@ -207,9 +207,8 @@ impl BaguaSingleBackendForKAI {
         let mut buckets = Vec::new();
         println!("buckets={:?}", rsp.recommended_hyperparameters.buckets);
         self.inner_tensors.clear();
-        let mut inner_tensor_holder = Vec::new();
         for (i, td_bucket) in rsp.recommended_hyperparameters.buckets.iter().enumerate() {
-            let mut tensors_ref = Vec::<&BaguaTensor>::new();
+            let mut inner_tensor_holder = Vec::new();
             for td_tensor in td_bucket.iter() {
                 let filter_list: Vec<&BaguaTensor> = tensors
                     .iter()
@@ -233,9 +232,13 @@ impl BaguaSingleBackendForKAI {
                 self.inner_tensors
                     .insert(input_tensor.name(), inner_tensor.clone());
                 inner_tensor_holder.push(inner_tensor);
-                tensors_ref.push(&inner_tensor_holder[inner_tensor_holder.len() - 1]);
 
                 tmpbuff_ptr += input_tensor.bytes() as u64;
+            }
+
+            let mut tensors_ref = Vec::<&BaguaTensor>::new();
+            for inner_tensor in &inner_tensor_holder {
+                tensors_ref.push(inner_tensor);
             }
 
             let bucket =
