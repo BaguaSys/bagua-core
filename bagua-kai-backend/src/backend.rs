@@ -237,6 +237,7 @@ impl BaguaSingleBackendForKAI {
                     input_tensor.inner.read().raw.dtype(),
                     0,
                 );
+                println!("input_tensor={} set in", input_tensor.name());
                 self.inner_tensors
                     .insert(input_tensor.name(), inner_tensor.clone());
                 inner_tensor_holder.push(inner_tensor);
@@ -283,6 +284,7 @@ impl BaguaSingleBackendForKAI {
     ) {
         let comm_stream_ptr = self.comm.inner.stream_ptr;
 
+        println!("get inner_tensor={}", input_tensor.name());
         let inner_tensor = self
             .inner_tensors
             .get(&input_tensor.name())
