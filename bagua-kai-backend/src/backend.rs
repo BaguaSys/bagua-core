@@ -75,7 +75,7 @@ pub struct BaguaSingleBackendForKAI {
         std::thread::JoinHandle<()>,
         tokio::sync::oneshot::Sender<()>,
     )>,
-    pub bucket_callback: Vec<Arc<Vec<callback_func>>>,
+    pub bucket_callback: Vec<Arc<Mutex<Vec<callback_func>>>>,
     // pub bucket_callback: Vec<Arc<dyn Fn() + Send + Sync + 'static>>,
     pub tensor_name_to_bucket_id: std::collections::HashMap<String, usize>,
     pub tmpbuff: DynamicPoolItem<CudaMemory>,
@@ -154,7 +154,7 @@ impl BaguaSingleBackendForKAI {
         self.backend.register_ordered_buckets(&buckets_ref).unwrap();
         self.bucket_callback = Vec::with_capacity(buckets.len());
         for (i, _) in buckets.iter_mut().enumerate() {
-            self.bucket_callback.push(Arc::new(vec![]));
+            self.bucket_callback.push(Arc::new(Mutex::new(vec![])));
         }
         for (i, bucket) in buckets.clone().iter_mut().enumerate() {
             for tensor in &bucket.inner.lock().tensors {
@@ -172,7 +172,7 @@ impl BaguaSingleBackendForKAI {
             let callback_list = self.bucket_callback[i].clone();
             bucket.append_custom_op(Arc::new(
                 move |_x: Arc<BaguaBucket>, _y: &BaguaCommOpChannels| {
-                    for callback in callback_list {
+                    for callback in callback_list.lock().unwrap().iter() {
                         callback();
                     }
                 },
@@ -267,7 +267,7 @@ impl BaguaSingleBackendForKAI {
     ) {
         let bucket_id = *self.tensor_name_to_bucket_id.get(&tensor.name()).unwrap();
         let callback_list = self.bucket_callback[bucket_id];
-        callback_list.push(callback);
+        callback_list.lock().unwrap().push(callback);
 
         self.backend
             .mark_communication_ready(&tensor, ready_cuda_event_ptr)
@@ -318,7 +318,7 @@ impl BaguaSingleBackendForKAI {
 
             callback();
         });
-        callback_list.push(new_callback);
+        callback_list.lock().unwrap().push(new_callback);
 
         self.backend
             .mark_communication_ready(&inner_tensor, ready_cuda_event_ptr)
