@@ -230,10 +230,8 @@ impl BaguaSingleBackendForKAI {
                     input_tensor.inner.read().raw.dtype(),
                     0,
                 );
-                self.inner_tensors.insert(
-                    input_tensor.name(),
-                    inner_tensor.clone(),
-                );
+                self.inner_tensors
+                    .insert(input_tensor.name(), inner_tensor.clone());
                 tensors_ref.push(&inner_tensor);
                 inner_tensor_holder.push(inner_tensor);
 
