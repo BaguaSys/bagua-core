@@ -153,7 +153,7 @@ impl BaguaSingleBackendForKAI {
 
         self.backend.register_ordered_buckets(&buckets_ref).unwrap();
         self.bucket_callback = Vec::with_capacity(buckets.len());
-        for (i, _) in buckets.iter_mut().enumerate() {
+        for (i, _) in buckets.iter().enumerate() {
             self.bucket_callback.push(Arc::new(Mutex::new(vec![])));
         }
         for (i, bucket) in buckets.clone().iter_mut().enumerate() {
@@ -266,7 +266,7 @@ impl BaguaSingleBackendForKAI {
         callback: Arc<dyn Fn() + Send + Sync + 'static>,
     ) {
         let bucket_id = *self.tensor_name_to_bucket_id.get(&tensor.name()).unwrap();
-        let callback_list = self.bucket_callback[bucket_id];
+        let callback_list = self.bucket_callback[bucket_id].clone();
         callback_list.lock().unwrap().push(callback);
 
         self.backend
