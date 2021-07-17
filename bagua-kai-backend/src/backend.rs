@@ -232,8 +232,8 @@ impl BaguaSingleBackendForKAI {
                 );
                 self.inner_tensors
                     .insert(input_tensor.name(), inner_tensor.clone());
-                tensors_ref.push(&inner_tensor);
                 inner_tensor_holder.push(inner_tensor);
+                tensors_ref.push(&inner_tensor_holder[inner_tensor_holder.len() - 1]);
 
                 tmpbuff_ptr += input_tensor.bytes() as u64;
             }
