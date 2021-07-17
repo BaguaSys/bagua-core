@@ -19,7 +19,6 @@ pub struct DecentralizedFullPrecisionSynchronous {
     pub communicator: BaguaCommunicator,
     pub peer_selection_mode: PeerSelectionMode,
     pub step: Mutex<usize>,
-    pub communication_interval: usize,
     pub peer_weight: BaguaTensor,
 }
 
@@ -47,12 +46,11 @@ impl CommOpTrait for DecentralizedFullPrecisionSynchronous {
         };
 
         let peer_mode = &self.peer_selection_mode;
-        let comm_interval = &self.communication_interval;
-        let step = { *self.step.lock() };
 
         let mut peer_guard = self.peer_weight.inner.write();
         let mut peer_tensor = peer_guard.raw.as_mut();
-        
+        let step = { *self.step.lock() } as i64;
+
         self.communicator.execute_communication(
             &mut communication_tensor,
             true,
@@ -62,38 +60,33 @@ impl CommOpTrait for DecentralizedFullPrecisionSynchronous {
                 match peer_mode {
                     PeerSelectionMode::All => {
                         {
-                            if step % comm_interval == 0 {
-                                peer_tensor.clone_from(&t.raw, c.stream_ptr);
-                                let _guard = NCCLGroupGuard::new();
-                                c.allreduce_inplace(peer_tensor, BaguaReductionOp::SUM);
-                                peer_tensor.divide_inplace(stream_ptr, c.nranks as f32);
-                            }
+                            peer_tensor.clone_from(&t.raw, c.stream_ptr);
+                            let _guard = NCCLGroupGuard::new();
+                            c.allreduce_inplace(peer_tensor, BaguaReductionOp::SUM);
+                            peer_tensor.divide_inplace(stream_ptr, c.nranks as f32);
                         }
                     }
                     PeerSelectionMode::ShiftOne => {
-                        if step % comm_interval == 0 {
-                            assert_eq!(
-                                c.nranks % 2,
-                                0,
-                                "you cannot use decentralized algorithm with average_all off when there are odd number of ranks, current n_ranks {}",
-                                c.nranks
-                            );
-                            let comm_step = (step / comm_interval) as i64;
-                            let rank = c.rank as i64;
-                            let nranks = c.nranks as i64;
-                            let peer_rank = if c.rank < c.nranks / 2 {
-                                ((comm_step + rank) % ((nranks + 1) / 2)) + (nranks / 2)
-                            } else {
-                                (rank - (nranks / 2) - comm_step).rem_euclid(nranks / 2)
-                            } as i32;
-                            tracing::debug!("rank {} peer_rank {}", c.rank, peer_rank);
-                            {
-                                let _guard = NCCLGroupGuard::new();
-                                c.send(&t.raw, peer_rank);
-                                c.recv(peer_tensor, peer_rank);
-                            }
-                            peer_tensor.average_inplace(&t.raw, c.stream_ptr);
+                        assert_eq!(
+                            c.nranks % 2,
+                            0,
+                            "you cannot use decentralized algorithm with average_all off when there are odd number of ranks, current n_ranks {}",
+                            c.nranks
+                        );
+                        let rank = c.rank as i64;
+                        let nranks = c.nranks as i64;
+                        let peer_rank = if c.rank < c.nranks / 2 {
+                            ((step + rank) % ((nranks + 1) / 2)) + (nranks / 2)
+                        } else {
+                            (rank - (nranks / 2) - step).rem_euclid(nranks / 2)
+                        } as i32;
+                        tracing::debug!("rank {} peer_rank {}", c.rank, peer_rank);
+                        {
+                            let _guard = NCCLGroupGuard::new();
+                            c.send(&t.raw, peer_rank);
+                            c.recv(peer_tensor, peer_rank);
                         }
+                        peer_tensor.average_inplace(&t.raw, c.stream_ptr);
                     },
                     PeerSelectionMode::Ring => {
                         unimplemented!()
@@ -103,6 +96,7 @@ impl CommOpTrait for DecentralizedFullPrecisionSynchronous {
         );
 
         *self.step.lock() += 1;
+
     }
 }
 

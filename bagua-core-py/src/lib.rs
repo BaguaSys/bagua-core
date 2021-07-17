@@ -410,7 +410,6 @@ impl BaguaBucketPy {
         communicator_intranode: Option<&BaguaSingleCommunicatorPy>,
         hierarchical: bool,
         peer_selection_mode: String,
-        communication_interval: usize,
         peer_weight: PyRef<BaguaTensorPy>,
     ) -> PyResult<()> {
         self.inner.append_decentralized_synchronous_op(
@@ -418,7 +417,6 @@ impl BaguaBucketPy {
             communicator_intranode.map(|x| &x.inner),
             hierarchical,
             peer_selection_mode,
-            communication_interval,
             (*peer_weight).inner.clone(),
         );
         Ok(())
@@ -431,7 +429,6 @@ impl BaguaBucketPy {
         communicator_intranode: Option<&BaguaSingleCommunicatorPy>,
         hierarchical: bool,
         peer_selection_mode: String,
-        communication_interval: usize,
         compression: String,
         weight: PyRef<BaguaTensorPy>,
         left_peer_weight: PyRef<BaguaTensorPy>,
@@ -442,7 +439,6 @@ impl BaguaBucketPy {
             communicator_intranode.map(|x| &x.inner),
             hierarchical,
             peer_selection_mode,
-            communication_interval,
             compression,
             (*weight).inner.clone(),
             (*left_peer_weight).inner.clone(),

@@ -1108,7 +1108,6 @@ impl BaguaBucket {
         communicator_intranode: Option<&BaguaSingleCommunicator>,
         hierarchical: bool,
         peer_selection_mode: String,
-        communication_interval: usize,
         peer_weight: BaguaTensor,
     ) {
         let communicator =
@@ -1124,7 +1123,6 @@ impl BaguaBucket {
                 }
             },
             step: Default::default(),
-            communication_interval,
             peer_weight,
         });
 
@@ -1137,7 +1135,6 @@ impl BaguaBucket {
         communicator_intranode: Option<&BaguaSingleCommunicator>,
         hierarchical: bool,
         peer_selection_mode: String,
-        communication_interval: usize,
         compression: String,
         weight: BaguaTensor,
         left_peer_weight: BaguaTensor,
@@ -1154,8 +1151,6 @@ impl BaguaBucket {
                      unimplemented!("unsupported peer_selection_mode for low precision decentralized algorithm (should be `ring`)")
                  }
              },
-             step: Default::default(),
-             communication_interval,
              compression_method: TensorCompressionMethod::MinMaxUInt8(
                  MinMaxUInt8CompressionParameters {},
              ),
