@@ -63,7 +63,7 @@ fn init_process_group(
     )
 }
 
-type callback_func = Arc<dyn Fn() + Send + Sync + 'static>;
+type CallbackFunc = Arc<dyn Fn() + Send + Sync + 'static>;
 
 pub struct BaguaSingleBackendForKAI {
     pub rank: usize,
@@ -75,7 +75,7 @@ pub struct BaguaSingleBackendForKAI {
         std::thread::JoinHandle<()>,
         tokio::sync::oneshot::Sender<()>,
     )>,
-    pub bucket_callback: Vec<Arc<Mutex<Vec<callback_func>>>>,
+    pub bucket_callback: Vec<Arc<Mutex<Vec<CallbackFunc>>>>,
     // pub bucket_callback: Vec<Arc<dyn Fn() + Send + Sync + 'static>>,
     pub tensor_name_to_bucket_id: std::collections::HashMap<String, usize>,
     pub tmpbuff: DynamicPoolItem<CudaMemory>,

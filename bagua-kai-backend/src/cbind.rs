@@ -195,14 +195,17 @@ pub extern "C" fn bagua_single_backend_for_kai_c_register_tensors(
     return 0;
 }
 
+type SafeCVoidPtr = *mut c_void;
+unsafe impl Send for SafeCVoidPtr {}
+
 #[no_mangle]
 pub extern "C" fn bagua_single_backend_for_kai_c_allreduce(
     ptr: *mut BaguaSingleBackendForKAIC,
     input_tensor: *mut BaguaTensorC,
     output_tensor: *mut BaguaTensorC,
     ready_cuda_event_ptr: u64,
-    callback: extern "C" fn(*mut c_void),
-    callback_args: *mut c_void,
+    callback: extern "C" fn(SafeCVoidPtr),
+    callback_args: SafeCVoidPtr,
 ) -> i32 {
     if ptr.is_null() {
         return -1;
