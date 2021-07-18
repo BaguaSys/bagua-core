@@ -22,7 +22,9 @@ pub unsafe fn cuda_memcpy_D2D_async(
     cpp::cpp!([dst_ptr as "void*", src_ptr as "void*", bytes as "size_t",
         cuda_stream_ptr as "cudaStream_t", ready_cuda_event_ptr as "cudaEvent_t"] -> u64 as "cudaEvent_t"
     {
-        CUDACHECK(cudaStreamWaitEvent(cuda_stream_ptr, ready_cuda_event_ptr , 0));
+        if (ready_cuda_event_ptr != 0) {
+            CUDACHECK(cudaStreamWaitEvent(cuda_stream_ptr, ready_cuda_event_ptr , 0));
+        }
         CUDACHECK(cudaMemcpyAsync(dst_ptr, src_ptr, bytes, cudaMemcpyDeviceToDevice, cuda_stream_ptr));
         cudaEvent_t cuda_event = NULL;
         CUDACHECK(cudaEventCreateWithFlags(
