@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(bagua_kai_backend)
+project(bagua_kai_backend LANGUAGES CUDA CXX)
 
 # GoogleTest requires at least C++11
 set(CMAKE_CXX_STANDARD 11)
@@ -15,14 +15,15 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
+set_source_files_properties(bagua_kai_backend_test.cc PROPERTIES LANGUAGE CUDA)
 add_executable(
-    bagua_kai_backend
-    bagua_kai_backend.cc
+    bagua_kai_backend_test
+    bagua_kai_backend_test.cc
 )
 target_link_libraries(
-    bagua_kai_backend
+    bagua_kai_backend_test
     gtest_main
 )
 
 include(GoogleTest)
-gtest_discover_tests(bagua_kai_backend)
+gtest_discover_tests(bagua_kai_backend_test)
