@@ -22,6 +22,7 @@ add_executable(
 )
 target_link_libraries(
     bagua_kai_backend_test
+    bagua_kai_backend
     gtest_main
 )
 
