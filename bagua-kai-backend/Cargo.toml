@@ -6,7 +6,7 @@ edition = "2018"
 
 [lib]
 name = "bagua_kai_backend"
-crate-type = ["rlib", "dylib"]
+crate-type = ["dylib"]
 path = "src/lib.rs"
 
 [dependencies]
