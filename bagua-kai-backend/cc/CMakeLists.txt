@@ -20,11 +20,12 @@ add_executable(
     bagua_kai_backend_test
     bagua_kai_backend_test.cc
 )
+find_library(BAGUA_BACKEND_LIBRARY NAMES bagua_kai_backend PATHS /share/ai_platform/changjianbin/github.com/shjwudp/bagua-core/target/debug)
 target_link_libraries(
     bagua_kai_backend_test
     PUBLIC
     gtest_main
-    bagua_kai_backend
+    ${BAGUA_BACKEND_LIBRARY}
 )
 
 include(GoogleTest)
