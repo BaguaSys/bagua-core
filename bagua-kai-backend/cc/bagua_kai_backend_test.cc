@@ -44,7 +44,7 @@ struct AllreduceCallbackContext
 void allreduce_callback(void *ctx_raw_ptr)
 {
     std::shared_ptr<AllreduceCallbackContext> ctx(
-        reinterpret_cast<AllreduceCallbackContext *>(ctx));
+        static_cast<AllreduceCallbackContext *>(ctx));
     ctx->inner();
 }
 
@@ -72,27 +72,27 @@ void allreduce(
         float zero = 0;
         auto output = value_pass_H2D(&zero, sizeof(input_value), cuda_stream);
 
-        memory_holder.push_back(std::shared_ptr(input.first, [](void *ptr)
-                                                { CUDACHECK(cudaFree(ptr)); }));
-        memory_holder.push_back(std::shared_ptr(output.first, [](void *ptr)
-                                                { CUDACHECK(cudaFree(ptr)); }));
+        memory_holder.push_back(std::shared_ptr<void *>(input.first, [](void *ptr)
+                                                        { CUDACHECK(cudaFree(ptr)); }));
+        memory_holder.push_back(std::shared_ptr<void *>(output.first, [](void *ptr)
+                                                        { CUDACHECK(cudaFree(ptr)); }));
 
         const std::string &tensor_name = "tensor-" + std::to_string(i);
         io_tensors.push_back({
             bagua::BaguaTensor(
                 tensor_name,
-                device_id,
+                reinterpret_cast<uintptr_t>(device_id),
                 input.first,
                 1,
                 "f32",
-                input.second),
+                (uint64_t)(input.second)),
             bagua::BaguaTensor(
                 tensor_name,
-                device_id,
+                reinterpret_cast<uintptr_t>(device_id),
                 output.first,
                 1,
                 "f32",
-                output.second),
+                (uint64_t)(output.second)),
         });
     }
 
@@ -108,7 +108,7 @@ void allreduce(
     std::vector<bagua::BaguaTensor> register_tensors;
     for (const auto &io : io_tensors)
     {
-        register_tensors.push_back(io.first);
+        register_tensors.push_back(io[0]);
     }
     int ret = backend.register_tensors(
         "model-test", register_tensors, autotune_service_addr, autotune_service_port, copy_tensors);
@@ -117,14 +117,14 @@ void allreduce(
     for (int i = 0; i < io_tensors.size(); i++)
     {
         auto io = io_tensors[i];
-        backend.allreduce(io.first, io.second, 0, allreduce_callback,
+        backend.allreduce(io[0], io[1], 0, allreduce_callback,
                           new AllreduceCallbackContext{
                               [io, cuda_stream, device_id]()
                               {
                                   CUDACHECK(cudaSetDevice(device_id));
 
                                   float result;
-                                  CUDACHECK(cudaMemcpy(&result, io.second.ptr(), sizeof(result)));
+                                  CUDACHECK(cudaMemcpy(&result, io[1].ptr(), sizeof(result), cudaMemcpyDeviceToHost));
 
                                   EXPECT_EQ(result, 3.5);
                               }});
@@ -161,10 +161,13 @@ TEST(BaguaKaiBackend, EndToEnd)
             {
                 int device_id = gpu_setting[i];
 
-                workers.push(std::thread(allreduce, i, nranks, i, master_addr, master_port, true, autotune_service_addr, autotune_service_port));
+                workers.push_back(std::thread(allreduce,
+                    i, nranks, i, master_addr, master_port, true,
+                    autotune_service_addr, autotune_service_port));
             }
 
-            for (auto& worker : workers) {
+            for (auto &worker : workers)
+            {
                 worker.join();
             }
 
