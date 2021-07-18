@@ -215,7 +215,7 @@ pub extern "C" fn bagua_single_backend_for_kai_c_allreduce(
         return -1;
     }
 
-    let callback_args = SafeCVoidPtr{
+    let callback_args = SafeCVoidPtr {
         inner: callback_args,
     };
 
