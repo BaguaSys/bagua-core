@@ -26,6 +26,7 @@ target_link_libraries(
     PUBLIC
     gtest_main
     ${BAGUA_BACKEND_LIBRARY}
+    /usr/local/lib/libopen-pal.so.40
 )
 
 include(GoogleTest)
