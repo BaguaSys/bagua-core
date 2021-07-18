@@ -179,7 +179,7 @@ impl BaguaSingleBackendForKAI {
                 let bucket =
                     BaguaBucket::new(tensors_ref.as_slice(), &bucket.name).unwrap();
                 for t in tensors_ref {
-                    self.tensor_name_to_bucket_id.insert(t.name(), i);
+                    self.tensor_name_to_bucket_id.insert(t.name(), inner_buckets.len());
                 }
                 inner_buckets.push(bucket);
             }
