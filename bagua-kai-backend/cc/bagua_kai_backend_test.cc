@@ -117,7 +117,7 @@ void allreduce(
     for (int i = 0; i < io_tensors.size(); i++)
     {
         auto io = io_tensors[i];
-        bagua::Tensor output = io[1];
+        bagua::BaguaTensor output = io[1];
         backend.allreduce(io[0], io[1], 0, allreduce_callback,
                           new AllreduceCallbackContext{
                               [output, cuda_stream, device_id]()
