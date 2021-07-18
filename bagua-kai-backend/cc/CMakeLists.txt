@@ -23,7 +23,6 @@ add_executable(
 find_library(BAGUA_BACKEND_LIBRARY NAMES bagua_kai_backend PATHS /share/ai_platform/changjianbin/github.com/shjwudp/bagua-core/target/debug)
 target_link_libraries(
     bagua_kai_backend_test
-    PUBLIC
     gtest_main
     ${BAGUA_BACKEND_LIBRARY}
     /usr/local/lib/libopen-pal.so.40
