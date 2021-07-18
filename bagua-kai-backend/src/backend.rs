@@ -175,9 +175,8 @@ impl BaguaSingleBackendForKAI {
                 for inner_tensor in &inner_tensor_holder {
                     tensors_ref.push(inner_tensor);
                 }
-    
-                let bucket =
-                    BaguaBucket::new(tensors_ref.as_slice(), bucket.name).unwrap();
+
+                let bucket = BaguaBucket::new(tensors_ref.as_slice(), bucket.name).unwrap();
                 for t in tensors_ref {
                     self.tensor_name_to_bucket_id.insert(t.name(), i);
                 }
