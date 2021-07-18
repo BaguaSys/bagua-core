@@ -93,7 +93,7 @@ namespace bagua
 
         BaguaSingleBackendForKAIC *ptr()
         {
-            _backend.get();
+            return _backend.get();
         }
 
         int register_tensors(
@@ -141,17 +141,18 @@ namespace bagua
         BaguaTensor(
             const std::string &name,
             uintptr_t device_id,
-            uint64_t ptr,
+            void* ptr,
             uintptr_t num_elem,
             const std::string &dtype_str,
             uint64_t ready_cuda_event_ptr)
         {
+            _ptr = ptr;
             _tensor = std::shared_ptr<BaguaTensorC>(
                 bagua_tensor_c_create(
                     name.c_str(),
                     static_cast<uintptr_t>(name.length()),
                     device_id,
-                    ptr,
+                    reinterpret_cast<uint64_t>(ptr),
                     num_elem,
                     dtype_str.c_str(),
                     static_cast<uintptr_t>(dtype_str.length()),
@@ -162,13 +163,18 @@ namespace bagua
                 });
         }
 
-        BaguaTensorC *ptr()
+        void* ptr() {
+            return _ptr;
+        }
+
+        BaguaTensorC *inner()
         {
-            _tensor.get();
+            return _tensor.get();
         }
 
     private:
         std::shared_ptr<BaguaTensorC> _tensor;
+        void* _ptr;
     };
 
     class BaguaBackendForKAI
@@ -199,7 +205,7 @@ namespace bagua
             std::vector<BaguaTensorC *> tensors_ptr;
             for (BaguaTensor t : tensors)
             {
-                tensors_ptr.push_back(t.ptr());
+                tensors_ptr.push_back(t.inner());
             }
 
             return _backend.register_tensors(model_name, tensors_ptr, autotune_service_addr, autotune_service_port, copy_tensors);
@@ -213,8 +219,8 @@ namespace bagua
             void *callback_args)
         {
             return _backend.allreduce(
-                input_tensor.ptr(),
-                output_tensor.ptr(),
+                input_tensor.inner(),
+                output_tensor.inner(),
                 ready_cuda_event_ptr,
                 callback,
                 callback_args);
