@@ -145,7 +145,48 @@ impl BaguaSingleBackendForKAI {
         }
     }
 
-    pub fn register_ordered_buckets(&mut self, buckets: Vec<BaguaBucket>) {
+    pub fn register_ordered_buckets(&mut self, mut buckets: Vec<BaguaBucket>, copy_bucket: bool) {
+        if copy_bucket {
+            let total_bytes = (&buckets).iter().map(|b| b.bytes()).sum();
+            self.tmpbuff = CUDA_DEVICE_MEMORY_POOL[self.device_id]
+                .try_pull(total_bytes)
+                .expect("cannot allocate gpu memory");
+            let mut tmpbuff_ptr = self.tmpbuff.ptr;
+
+            let mut inner_buckets = Vec::new();
+            self.inner_tensors.clear();
+            for bucket in buckets {
+                let mut inner_tensor_holder = Vec::new();
+                for tensor in bucket.tensors() {
+                    let inner_tensor = BaguaTensor::new(
+                        tensor.name(),
+                        self.device_id,
+                        tmpbuff_ptr,
+                        tensor.num_elements(),
+                        tensor.inner.read().raw.dtype(),
+                        0,
+                    );
+                    self.inner_tensors
+                        .insert(inner_tensor.name(), inner_tensor.clone());
+                    inner_tensor_holder.push(inner_tensor);
+                }
+
+                let mut tensors_ref = Vec::<&BaguaTensor>::new();
+                for inner_tensor in &inner_tensor_holder {
+                    tensors_ref.push(inner_tensor);
+                }
+    
+                let bucket =
+                    BaguaBucket::new(tensors_ref.as_slice(), bucket.name).unwrap();
+                for t in tensors_ref {
+                    self.tensor_name_to_bucket_id.insert(t.name(), i);
+                }
+                inner_buckets.push(bucket);
+            }
+
+            buckets = inner_buckets;
+        }
+
         let mut buckets_ref = Vec::new();
         for bucket in &buckets {
             buckets_ref.push(bucket);
@@ -186,13 +227,8 @@ impl BaguaSingleBackendForKAI {
         tensors: Vec<BaguaTensor>,
         autotune_service_addr: String,
         autotune_service_port: i32,
+        copy_bucket: bool,
     ) {
-        let total_bytes = (&tensors).iter().map(|b| b.bytes()).sum();
-        self.tmpbuff = CUDA_DEVICE_MEMORY_POOL[self.device_id]
-            .try_pull(total_bytes)
-            .expect("cannot allocate gpu memory");
-        let mut tmpbuff_ptr = self.tmpbuff.ptr;
-
         let telemetry = BaguaCommCoreTelemetry::new(&*format!(
             "{}:{}",
             autotune_service_addr, autotune_service_port
@@ -216,7 +252,7 @@ impl BaguaSingleBackendForKAI {
         println!("buckets={:?}", rsp.recommended_hyperparameters.buckets);
         self.inner_tensors.clear();
         for (i, td_bucket) in rsp.recommended_hyperparameters.buckets.iter().enumerate() {
-            let mut inner_tensor_holder = Vec::new();
+            let mut tensors_ref = Vec::<&BaguaTensor>::new();
             for td_tensor in td_bucket.iter() {
                 let filter_list: Vec<&BaguaTensor> = tensors
                     .iter()
@@ -228,26 +264,7 @@ impl BaguaSingleBackendForKAI {
                     "Invalid filter_list={:?}",
                     filter_list
                 );
-                let input_tensor = filter_list[0];
-                let inner_tensor = BaguaTensor::new(
-                    input_tensor.name(),
-                    self.device_id,
-                    tmpbuff_ptr,
-                    input_tensor.num_elements(),
-                    input_tensor.inner.read().raw.dtype(),
-                    0,
-                );
-                println!("input_tensor={} set in", input_tensor.name());
-                self.inner_tensors
-                    .insert(input_tensor.name(), inner_tensor.clone());
-                inner_tensor_holder.push(inner_tensor);
-
-                tmpbuff_ptr += input_tensor.bytes() as u64;
-            }
-
-            let mut tensors_ref = Vec::<&BaguaTensor>::new();
-            for inner_tensor in &inner_tensor_holder {
-                tensors_ref.push(inner_tensor);
+                tensors_ref.push(&filter_list[0]);
             }
 
             let bucket =
@@ -257,7 +274,7 @@ impl BaguaSingleBackendForKAI {
             }
             buckets.push(bucket);
         }
-        self.register_ordered_buckets(buckets);
+        self.register_ordered_buckets(buckets, copy_bucket);
     }
 
     pub fn allreduce_inplace(
@@ -438,7 +455,7 @@ mod tests {
                             }
                             let bucket =
                                 BaguaBucket::new(tensors_ref.as_slice(), "bucket-1").unwrap();
-                            backend4kai.register_ordered_buckets(vec![bucket]);
+                            backend4kai.register_ordered_buckets(vec![bucket], true);
 
                             for in_and_out in io_list {
                                 let ptr = in_and_out.1.inner.read().raw.data_ptr();
