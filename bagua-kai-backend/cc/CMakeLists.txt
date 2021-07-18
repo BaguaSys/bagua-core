@@ -22,8 +22,12 @@ add_executable(
 )
 target_link_libraries(
     bagua_kai_backend_test
-    bagua_kai_backend
     gtest_main
+)
+target_link_libraries(
+    bagua_kai_backend_test
+    PUBLIC
+    bagua_kai_backend
 )
 
 include(GoogleTest)
