@@ -213,6 +213,7 @@ dependencies = [
  "bagua-store",
  "libc",
  "nix",
+ "openssl",
  "parking_lot",
  "prost",
  "sized-object-pool",

@@ -6,7 +6,7 @@ edition = "2018"
 
 [lib]
 name = "bagua_kai_backend"
-crate-type = ["dylib", "rlib"]
+crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
@@ -21,6 +21,7 @@ argparse = "0.2.2"
 tracing = "0.1"
 tracing-subscriber = "0.2"
 sized-object-pool = "0.2"
+openssl = { version = "0.10", features = ["vendored"] }
 
 [dev-dependencies]
 nix = { version = "0.8" }

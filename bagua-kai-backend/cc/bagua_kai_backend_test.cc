@@ -163,7 +163,7 @@ TEST(BaguaKaiBackend, EndToEnd)
                 int device_id = gpu_setting[i];
 
                 workers.push_back(std::thread(allreduce,
-                                              i, nranks, i, master_addr, master_port, true,
+                                              device_id, nranks, device_id, master_addr, master_port, true,
                                               autotune_service_addr, autotune_service_port));
             }
 
