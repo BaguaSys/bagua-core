@@ -117,14 +117,15 @@ void allreduce(
     for (int i = 0; i < io_tensors.size(); i++)
     {
         auto io = io_tensors[i];
+        bagua::Tensor output = io[1];
         backend.allreduce(io[0], io[1], 0, allreduce_callback,
                           new AllreduceCallbackContext{
-                              [io, cuda_stream, device_id]()
+                              [output, cuda_stream, device_id]()
                               {
                                   CUDACHECK(cudaSetDevice(device_id));
 
                                   float result;
-                                  CUDACHECK(cudaMemcpy(&result, io[1].ptr(), sizeof(result), cudaMemcpyDeviceToHost));
+                                  CUDACHECK(cudaMemcpy(&result, output.ptr(), sizeof(result), cudaMemcpyDeviceToHost));
 
                                   EXPECT_EQ(result, 3.5);
                               }});
