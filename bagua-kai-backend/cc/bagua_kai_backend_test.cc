@@ -44,7 +44,7 @@ struct AllreduceCallbackContext
 void allreduce_callback(void *ctx_raw_ptr)
 {
     std::shared_ptr<AllreduceCallbackContext> ctx(
-        static_cast<AllreduceCallbackContext *>(ctx));
+        static_cast<AllreduceCallbackContext *>(ctx_raw_ptr));
     ctx->inner();
 }
 
@@ -62,7 +62,7 @@ void allreduce(
     cudaStream_t cuda_stream;
     CUDACHECK(cudaStreamCreate(&cuda_stream));
 
-    std::vector<std::shared_ptr<void *> > memory_holder;
+    std::vector<std::shared_ptr<void> > memory_holder;
     std::vector<std::vector<bagua::BaguaTensor> > io_tensors;
     const int tensor_num = 10;
     float input_value = device_id;
@@ -72,10 +72,10 @@ void allreduce(
         float zero = 0;
         auto output = value_pass_H2D(&zero, sizeof(input_value), cuda_stream);
 
-        memory_holder.push_back(std::shared_ptr<void *>(input.first, [](void *ptr)
-                                                        { CUDACHECK(cudaFree(ptr)); }));
-        memory_holder.push_back(std::shared_ptr<void *>(output.first, [](void *ptr)
-                                                        { CUDACHECK(cudaFree(ptr)); }));
+        memory_holder.push_back(std::shared_ptr<void>(input.first, [](void *ptr)
+                                                      { CUDACHECK(cudaFree(ptr)); }));
+        memory_holder.push_back(std::shared_ptr<void>(output.first, [](void *ptr)
+                                                      { CUDACHECK(cudaFree(ptr)); }));
 
         const std::string &tensor_name = "tensor-" + std::to_string(i);
         io_tensors.push_back({
@@ -162,8 +162,8 @@ TEST(BaguaKaiBackend, EndToEnd)
                 int device_id = gpu_setting[i];
 
                 workers.push_back(std::thread(allreduce,
-                    i, nranks, i, master_addr, master_port, true,
-                    autotune_service_addr, autotune_service_port));
+                                              i, nranks, i, master_addr, master_port, true,
+                                              autotune_service_addr, autotune_service_port));
             }
 
             for (auto &worker : workers)
