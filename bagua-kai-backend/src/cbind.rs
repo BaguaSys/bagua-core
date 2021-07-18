@@ -167,6 +167,7 @@ pub extern "C" fn bagua_single_backend_for_kai_c_register_tensors(
     autotune_service_addr_ptr: *const c_char,
     autotune_service_addr_size: usize,
     autotune_service_port: i32,
+    copy_bucket: bool,
 ) -> i32 {
     if ptr.is_null() {
         return -1;
@@ -186,6 +187,7 @@ pub extern "C" fn bagua_single_backend_for_kai_c_register_tensors(
             tensors,
             cstr_to_str(autotune_service_addr_ptr, autotune_service_addr_size).to_string(),
             autotune_service_port,
+            copy_bucket,
         );
     };
 
