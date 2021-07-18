@@ -167,7 +167,7 @@ pub extern "C" fn bagua_single_backend_for_kai_c_register_tensors(
     autotune_service_addr_ptr: *const c_char,
     autotune_service_addr_size: usize,
     autotune_service_port: i32,
-    copy_bucket: bool,
+    copy_tensors: bool,
 ) -> i32 {
     if ptr.is_null() {
         return -1;
@@ -187,7 +187,7 @@ pub extern "C" fn bagua_single_backend_for_kai_c_register_tensors(
             tensors,
             cstr_to_str(autotune_service_addr_ptr, autotune_service_addr_size).to_string(),
             autotune_service_port,
-            copy_bucket,
+            copy_tensors,
         );
     };
 
@@ -200,8 +200,8 @@ pub extern "C" fn bagua_single_backend_for_kai_c_allreduce(
     input_tensor: *mut BaguaTensorC,
     output_tensor: *mut BaguaTensorC,
     ready_cuda_event_ptr: u64,
-    callback: extern "C" fn(u64),
-    callback_args: u64,
+    callback: extern "C" fn(*mut c_void),
+    callback_args: *mut c_void,
 ) -> i32 {
     if ptr.is_null() {
         return -1;

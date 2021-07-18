@@ -145,8 +145,8 @@ impl BaguaSingleBackendForKAI {
         }
     }
 
-    pub fn register_ordered_buckets(&mut self, mut buckets: Vec<BaguaBucket>, copy_bucket: bool) {
-        if copy_bucket {
+    pub fn register_ordered_buckets(&mut self, mut buckets: Vec<BaguaBucket>, copy_buckets: bool) {
+        if copy_buckets {
             let total_bytes = (&buckets).iter().map(|b| b.bytes()).sum();
             self.tmpbuff = CUDA_DEVICE_MEMORY_POOL[self.device_id]
                 .try_pull(total_bytes)
@@ -166,6 +166,8 @@ impl BaguaSingleBackendForKAI {
                         tensor.inner.read().raw.dtype(),
                         0,
                     );
+                    tmpbuff_ptr += tensor.bytes() as u64;
+
                     self.inner_tensors
                         .insert(inner_tensor.name(), inner_tensor.clone());
                     inner_tensor_holder.push(inner_tensor);
@@ -227,7 +229,7 @@ impl BaguaSingleBackendForKAI {
         tensors: Vec<BaguaTensor>,
         autotune_service_addr: String,
         autotune_service_port: i32,
-        copy_bucket: bool,
+        copy_tensors: bool,
     ) {
         let telemetry = BaguaCommCoreTelemetry::new(&*format!(
             "{}:{}",
@@ -274,7 +276,7 @@ impl BaguaSingleBackendForKAI {
             }
             buckets.push(bucket);
         }
-        self.register_ordered_buckets(buckets, copy_bucket);
+        self.register_ordered_buckets(buckets, copy_tensors);
     }
 
     pub fn allreduce_inplace(
