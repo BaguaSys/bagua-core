@@ -1,6 +1,7 @@
 use libc::c_char;
 use parking_lot::Mutex;
 use std::{slice, str, sync::Arc};
+use core::ffi::c_void;
 
 use crate::backend::BaguaSingleBackendForKAI;
 use bagua_core_internal::datatypes::{BaguaBucket, BaguaTensor, BaguaTensorDtype};
