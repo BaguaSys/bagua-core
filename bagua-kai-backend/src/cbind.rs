@@ -200,6 +200,7 @@ struct SafeCVoidPtr {
 }
 
 unsafe impl Send for SafeCVoidPtr {}
+unsafe impl Sync for SafeCVoidPtr {}
 
 #[no_mangle]
 pub extern "C" fn bagua_single_backend_for_kai_c_allreduce(
