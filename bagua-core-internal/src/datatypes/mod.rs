@@ -4,8 +4,9 @@ use crate::comm_ops::decentralized_full_precision_synchronous::{
     DecentralizedFullPrecisionSynchronous, PeerSelectionMode,
 };
 use crate::comm_ops::decentralized_low_precision_synchronous::DecentralizedLowPrecisionSynchronous;
+use crate::comm_ops::decentralized_full_precision_asynchronous::DecentralizedFullPrecisionAsynchronous;
 use crate::comm_ops::python_ffi_op::PythonFFIOp;
-use crate::comm_ops::CommOpTrait;
+use crate::comm_ops::{CommOpTrait, AsyncCommOpTrait};
 use crate::communicators::{BaguaCommunicator, BaguaSingleCommunicator};
 use crate::resource_pool::{CudaMemory, CUDA_DEVICE_MEMORY_POOL};
 use crate::telemetry::TELEMETRY;
@@ -1205,6 +1206,29 @@ impl BaguaBucket {
             },
         };
         self.inner.lock().comm_ops.push(comm_op);
+    }
+
+    pub fn append_decentralized_asynchronous_op(
+        &mut self,
+        communicator_internode: Option<&BaguaSingleCommunicator>,
+        communicator_intranode: Option<&BaguaSingleCommunicator>,
+        peer_selection_mode: String,
+        sync_interval_ms: u64,
+    ) -> Result<Arc<dyn AsyncCommOpTrait + Send + Sync>, BaguaCoreError> {
+        let communicator =
+            BaguaCommunicator::new(communicator_internode, communicator_intranode, false)
+                .expect("cannot create communicator");
+
+        Ok(Arc::new(DecentralizedFullPrecisionAsynchronous {
+            communicator,
+            peer_selection_mode: match peer_selection_mode.as_str() {
+                "all" => PeerSelectionMode::All,
+                &_ => {
+                    unimplemented!("unsupported peer_selection_mode for low precision decentralized algorithm (should be `ring`)")
+                }
+            },
+            sync_interval_ms
+        }))
     }
 
     pub fn ready_for_comm(&self) -> bool {

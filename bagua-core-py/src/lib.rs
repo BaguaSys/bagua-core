@@ -1,5 +1,6 @@
 #![allow(clippy::needless_return)]
 
+use bagua_core_internal::comm_ops::{AsyncCommOpTrait, Future};
 use bagua_core_internal::communicators::BaguaSingleCommunicator;
 use bagua_core_internal::datatypes::{
     BaguaBucket, BaguaReductionOp, BaguaTensor, BaguaTensorDtype,
@@ -10,6 +11,8 @@ use numpy::{IntoPyArray, PyArray1};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::PyNativeType;
+use std::sync::Arc;
+
 
 #[pyclass(dict)]
 pub struct BaguaSingleCommunicatorPy {
@@ -402,7 +405,7 @@ impl BaguaBucketPy {
         Ok(())
     }
 
-    #[args(hierarchical = "false", communication_interval = "1")]
+    #[args(hierarchical = "false")]
     pub fn append_decentralized_synchronous_op(
         &mut self,
         communicator_internode: Option<&BaguaSingleCommunicatorPy>,
@@ -421,7 +424,7 @@ impl BaguaBucketPy {
         Ok(())
     }
 
-    #[args(hierarchical = "false", communication_interval = "1")]
+    #[args(hierarchical = "false")]
     pub fn append_low_precision_decentralized_synchronous_op(
         &mut self,
         communicator_internode: Option<&BaguaSingleCommunicatorPy>,
@@ -447,6 +450,24 @@ impl BaguaBucketPy {
         Ok(())
     }
 
+    pub fn append_decentralized_asynchronous_op(
+        &mut self,
+        communicator_internode: Option<&BaguaSingleCommunicatorPy>,
+        communicator_intranode: Option<&BaguaSingleCommunicatorPy>,
+        peer_selection_mode: String,
+        sync_interval_ms: u64,
+    ) -> PyResult<BaguaAsyncCommOpPy> {
+       
+        self.inner.append_decentralized_asynchronous_op(
+            communicator_internode.map(|x| &x.inner),
+            communicator_intranode.map(|x| &x.inner),
+            peer_selection_mode,
+            sync_interval_ms,
+        )
+        .map(|x| BaguaAsyncCommOpPy {inner: x})
+        .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
+    }
+
     pub fn print_ops(&self) -> PyResult<()> {
         println!("{:?}", self.inner.inner.lock().comm_ops);
         Ok(())
@@ -464,6 +485,17 @@ impl BaguaBucketPy {
     pub fn reset_comm_ready(&self) {
         self.inner.reset_comm_ready()
     }
+}
+
+#[pyclass(dict)]
+pub struct BaguaFuturePy {
+    inner: Box<dyn Future + Send + Sync>
+}
+
+
+#[pyclass(dict)]
+pub struct BaguaAsyncCommOpPy {
+    inner: Arc<dyn AsyncCommOpTrait + Send + Sync>
 }
 
 #[pymodule]
