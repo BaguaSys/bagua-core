@@ -139,7 +139,25 @@ pub trait RawBaguaTensor: Debug {
             });
         }
     }
-
+    
+    fn async_model_average(&mut self, reduced_tensor: &dyn RawBaguaTensor, tensor: &dyn RawBaguaTensor, nranks: f32,  stream_ptr: u64) {
+        assert_eq!(self.dtype(), reduced_tensor.dtype());
+        assert_eq!(self.num_elements(), reduced_tensor.num_elements());
+        assert_eq!(self.dtype(), tensor.dtype());
+        assert_eq!(self.num_elements(), tensor.num_elements());
+        let tensor_ptr = self.data_ptr();
+        let total_num_elem = self.num_elements();
+        unsafe {
+            kernels::async_model_average_host(
+                tensor_ptr as _,
+                reduced_tensor.data_ptr() as _,
+                tensor.data_ptr() as _,
+                nranks as f32,
+                total_num_elem as i32,
+                stream_ptr as _,
+            );
+        }
+    }
     fn substract_inplace(&mut self, other: &dyn RawBaguaTensor, stream_ptr: u64) {
         assert_eq!(self.dtype(), other.dtype());
         assert_eq!(self.num_elements(), other.num_elements());
