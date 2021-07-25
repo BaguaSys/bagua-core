@@ -1052,6 +1052,17 @@ impl<'b> Drop for BaguaCommunicationTensor<'b> {
 }
 
 #[derive(Debug, Clone)]
+pub struct BaguaAsyncCommOp {
+    pub name: String,
+    pub inner: Arc<dyn AsyncCommOpTrait + Send + Sync>
+}
+
+#[derive(Debug)]
+pub struct BaguaExecutionHandle {
+    pub inner: std::thread::JoinHandle<()>
+}
+
+#[derive(Debug, Clone)]
 pub struct BaguaBucket {
     pub name: String,
     pub inner: Arc<Mutex<BaguaBucketInner>>,
@@ -1214,21 +1225,24 @@ impl BaguaBucket {
         communicator_intranode: Option<&BaguaSingleCommunicator>,
         peer_selection_mode: String,
         sync_interval_ms: u64,
-    ) -> Result<Arc<dyn AsyncCommOpTrait + Send + Sync>, BaguaCoreError> {
+    ) -> BaguaAsyncCommOp {
         let communicator =
             BaguaCommunicator::new(communicator_internode, communicator_intranode, false)
                 .expect("cannot create communicator");
 
-        Ok(Arc::new(DecentralizedFullPrecisionAsynchronous {
-            communicator,
-            peer_selection_mode: match peer_selection_mode.as_str() {
-                "all" => PeerSelectionMode::All,
-                &_ => {
-                    unimplemented!("unsupported peer_selection_mode for low precision decentralized algorithm (should be `ring`)")
-                }
-            },
-            sync_interval_ms
-        }))
+        BaguaAsyncCommOp {
+            name: String::from("decentralized_async_op"),
+            inner: Arc::new(DecentralizedFullPrecisionAsynchronous {
+                communicator,
+                peer_selection_mode: match peer_selection_mode.as_str() {
+                    "all" => PeerSelectionMode::All,
+                    &_ => {
+                        unimplemented!("unsupported peer_selection_mode for low precision decentralized algorithm (should be `ring`)")
+                    }
+                },
+                sync_interval_ms
+            })
+        }
     }
 
     pub fn ready_for_comm(&self) -> bool {

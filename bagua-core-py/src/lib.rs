@@ -1,9 +1,8 @@
 #![allow(clippy::needless_return)]
 
-use bagua_core_internal::comm_ops::{AsyncCommOpTrait, Future};
 use bagua_core_internal::communicators::BaguaSingleCommunicator;
 use bagua_core_internal::datatypes::{
-    BaguaBucket, BaguaReductionOp, BaguaTensor, BaguaTensorDtype,
+    BaguaBucket, BaguaReductionOp, BaguaTensor, BaguaTensorDtype, BaguaAsyncCommOp, BaguaExecutionHandle
 };
 use bagua_core_internal::BaguaCommBackend;
 use num_traits::FromPrimitive;
@@ -347,6 +346,20 @@ impl BaguaCommBackendPy {
         py.allow_threads(|| self.inner.start_upload_telemetry(skip))
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
+
+    pub fn schedule_comm_async(
+        &self,
+        bucket: PyRef<BaguaBucketPy>,
+        op: PyRef<BaguaAsyncCommOpPy>,
+        py: Python
+    ) -> PyResult<BaguaExecutionHandlePy> {
+
+        let bucket_inner = &bucket.inner;
+        let op_inner = &op.inner;
+        py.allow_threads(|| self.inner.schedule_comm_async(bucket_inner, op_inner))
+            .map(|x| BaguaExecutionHandlePy{inner: x})
+            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
+    }
 }
 
 #[pyclass(dict)]
@@ -456,16 +469,16 @@ impl BaguaBucketPy {
         communicator_intranode: Option<&BaguaSingleCommunicatorPy>,
         peer_selection_mode: String,
         sync_interval_ms: u64,
-    ) -> PyResult<BaguaAsyncCommOpPy> {
+    ) -> BaguaAsyncCommOpPy {
        
-        self.inner.append_decentralized_asynchronous_op(
-            communicator_internode.map(|x| &x.inner),
-            communicator_intranode.map(|x| &x.inner),
-            peer_selection_mode,
-            sync_interval_ms,
-        )
-        .map(|x| BaguaAsyncCommOpPy {inner: x})
-        .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
+        BaguaAsyncCommOpPy {
+            inner: self.inner.append_decentralized_asynchronous_op(
+                communicator_internode.map(|x| &x.inner),
+                communicator_intranode.map(|x| &x.inner),
+                peer_selection_mode,
+                sync_interval_ms,
+            )
+        }
     }
 
     pub fn print_ops(&self) -> PyResult<()> {
@@ -488,14 +501,14 @@ impl BaguaBucketPy {
 }
 
 #[pyclass(dict)]
-pub struct BaguaFuturePy {
-    inner: Box<dyn Future + Send + Sync>
+pub struct BaguaExecutionHandlePy {
+    inner: BaguaExecutionHandle
 }
 
 
 #[pyclass(dict)]
 pub struct BaguaAsyncCommOpPy {
-    inner: Arc<dyn AsyncCommOpTrait + Send + Sync>
+    inner: BaguaAsyncCommOp
 }
 
 #[pymodule]
@@ -520,6 +533,8 @@ fn bagua_core(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<BaguaTensorPy>()?;
     m.add_class::<BaguaBucketPy>()?;
     m.add_class::<BaguaSingleCommunicatorPy>()?;
+    m.add_class::<BaguaAsyncCommOpPy>()?;
+    m.add_class::<BaguaExecutionHandlePy>()?;
 
     #[pyfn(m, "show_version")]
     fn show_version(_py: Python) {

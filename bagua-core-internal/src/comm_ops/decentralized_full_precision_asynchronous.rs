@@ -1,26 +1,15 @@
 use crate::comm_ops::decentralized_full_precision_synchronous::PeerSelectionMode;
-use crate::comm_ops::{AsyncCommOpTrait, Future};
+use crate::comm_ops::AsyncCommOpTrait;
 use crate::communicators::BaguaCommunicator; 
-use crate::datatypes::{BaguaBucket, BaguaReductionOp, BaguaTensorRaw, RawBaguaTensor};
+use crate::datatypes::{BaguaBucket, BaguaReductionOp, BaguaTensorRaw, RawBaguaTensor, BaguaExecutionHandle};
 use crate::resource_pool::CUDA_DEVICE_MEMORY_POOL;
 use crate::{BaguaCommOpChannels, BaguaCoreError};
+use crate::events::BaguaEventChannel;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use cuda_runtime_sys::{cudaStream_t, cudaEvent_t};
 
-
-#[derive(Debug)]
-pub struct DecentralizedFullPrecisionAsynchronousFuture {
-    pub handle: std::thread::JoinHandle<()>,
-}
-
-impl Future for DecentralizedFullPrecisionAsynchronousFuture {
-
-    fn wait(&self) -> Result<(), BaguaCoreError> {
-        Ok(())
-    }
-}
 
 #[derive(Debug)]
 pub struct DecentralizedFullPrecisionAsynchronous {
@@ -35,7 +24,8 @@ impl AsyncCommOpTrait for DecentralizedFullPrecisionAsynchronous {
         &self,
         bucket: Arc<BaguaBucket>,
         _comm_op_channels: &BaguaCommOpChannels,
-    ) -> Result<Box<dyn Future + Send + Sync>, BaguaCoreError> {
+        _event_channel: &BaguaEventChannel,
+    ) -> BaguaExecutionHandle {
         let bucket = bucket.inner.clone();
 
         let c = match &self.communicator {
@@ -52,8 +42,8 @@ impl AsyncCommOpTrait for DecentralizedFullPrecisionAsynchronous {
         let device_id = self.communicator.device_id();
         let stream_ptr = self.communicator.stream_ptr();
 
-        Ok(Box::new(DecentralizedFullPrecisionAsynchronousFuture {
-            handle: thread::spawn(move || {
+        BaguaExecutionHandle {
+            inner: thread::spawn(move || {
 
                 let mut dst_ready_event = std::ptr::null_mut() as cudaEvent_t;
                 let mut src_ready_event = std::ptr::null_mut() as cudaEvent_t;
@@ -128,7 +118,7 @@ impl AsyncCommOpTrait for DecentralizedFullPrecisionAsynchronous {
                     thread::sleep(Duration::from_millis(sync_interval_ms));
                 }
             }),
-        }))
+        }
 
     }
 }
