@@ -4,10 +4,7 @@ use crate::exporter::agent::AgentAsyncClientHTTP;
 use crate::exporter::Exporter;
 use opentelemetry::{global, sdk, sdk::trace::TraceRuntime, trace::Tracer, trace::TracerProvider};
 
-pub fn init_tracer<R: TraceRuntime>(
-    runtime: R,
-    autotune_server_addr: &str,
-) -> impl Tracer {
+pub fn init_tracer<R: TraceRuntime>(runtime: R, autotune_server_addr: &str) -> impl Tracer {
     let exporter = Exporter {
         uploader: AgentAsyncClientHTTP::new(autotune_server_addr.to_string()),
     };
