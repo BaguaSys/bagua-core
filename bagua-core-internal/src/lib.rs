@@ -20,12 +20,16 @@ use datatypes::{BaguaBucket, BaguaTensor};
 use events::BaguaEventChannel;
 use flume::RecvTimeoutError;
 use hashbrown::{HashMap, HashSet};
+use opentelemetry::{
+    global,
+    trace::{Span, Tracer},
+    KeyValue,
+};
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
-use opentelemetry::{global, trace::{Span, Tracer}, KeyValue};
 
 cpp! {{
 #include <Al.hpp>

@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub struct BaguaSpan {
     pub trace_id: u128,
@@ -30,9 +29,12 @@ impl AgentAsyncClientHTTP {
         }
     }
 
-    pub async fn emit_batch(&mut self, batch: BaguaBatch) -> Result<EmitBatchResponse, reqwest::Error> {
+    pub async fn emit_batch(
+        &mut self,
+        batch: BaguaBatch,
+    ) -> Result<EmitBatchResponse, reqwest::Error> {
         let uri = format!("http://{}/report_tensor_execution_order", self.server_addr);
-        
+
         let new_post = reqwest::Client::new()
             .post(uri)
             .json(&batch)
