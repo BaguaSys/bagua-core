@@ -3,6 +3,8 @@ use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use scheduled_thread_pool::ScheduledThreadPool;
 use serde::{Deserialize, Serialize};
+use bagua_opentelemetry::init_tracer;
+use opentelemetry;
 
 #[allow(dead_code)]
 pub static SCHEDULED_THREAD_POOL: Lazy<ScheduledThreadPool> =
@@ -49,6 +51,7 @@ impl Default for TelemetryPayload {
 
 impl BaguaCommCoreTelemetry {
     pub fn new(server_addr: &str) -> Self {
+        let _tracer = init_tracer(opentelemetry::runtime::Tokio, server_addr);
         Self {
             server_addr: server_addr.to_string(),
             current_payload: TelemetryPayload::default(),
