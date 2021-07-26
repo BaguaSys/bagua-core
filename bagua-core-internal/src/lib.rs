@@ -25,6 +25,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
+use opentelemetry::{global, trace::{Span, Tracer}, KeyValue};
 
 cpp! {{
 #include <Al.hpp>
@@ -282,6 +283,10 @@ impl BaguaCommBackend {
         tensor: &BaguaTensor,
         ready_cuda_event_ptr: u64,
     ) -> Result<(), BaguaCoreError> {
+        let tracer = global::tracer("bagua-core");
+        let mut span = tracer.start("tensor_ready");
+        span.set_attribute(KeyValue::new("tensor_name", tensor.name()));
+
         tensor.mark_comm_ready(ready_cuda_event_ptr);
         while self.should_schedule()? {
             let bucket = self.ordered_buckets.pop_front().unwrap();
