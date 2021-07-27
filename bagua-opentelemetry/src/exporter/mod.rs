@@ -3,6 +3,7 @@ pub mod agent;
 use crate::exporter::agent::{AgentAsyncClientHTTP, BaguaBatch, BaguaSpan};
 use async_trait::async_trait;
 use opentelemetry::{sdk::export::trace, Key};
+use reqwest::StatusCode;
 use std::time::UNIX_EPOCH;
 
 #[derive(Debug)]
@@ -14,7 +15,7 @@ pub struct Exporter {
 impl trace::SpanExporter for Exporter {
     async fn export(&mut self, batch: Vec<trace::SpanData>) -> trace::ExportResult {
         let mut bagua_spans = Vec::new();
-        for (idx, span) in batch.into_iter().enumerate() {
+        for span in batch {
             let bagua_span = BaguaSpan {
                 trace_id: span.span_context.trace_id().to_u128(),
                 action: span.name.into_owned(),
@@ -36,16 +37,22 @@ impl trace::SpanExporter for Exporter {
                     .as_millis(),
             };
 
-            let span = serde_json::to_string(&bagua_span).unwrap();
             bagua_spans.push(bagua_span);
         }
 
-        if let Err(err) = self
+        let resp = self
             .uploader
             .emit_batch(BaguaBatch { spans: bagua_spans })
-            .await
-        {
-            tracing::warn!("upload bagua span failed, err={}", err);
+            .await;
+        match resp {
+            Ok(resp) => {
+                if resp.status() != StatusCode::OK {
+                    tracing::warn!("upload bagua span failed, resp={:?}", resp);
+                }
+            }
+            Err(err) => {
+                tracing::warn!("upload bagua span failed, err={:?}", err);
+            }
         }
 
         Ok(())
