@@ -30,13 +30,12 @@ impl AgentAsyncClientHTTP {
         &mut self,
         batch: BaguaBatch,
     ) -> Result<reqwest::Response, reqwest::Error> {
-        let uri = format!("http://{}/api/v1/report_tensor_execution_order", self.server_addr);
+        let uri = format!(
+            "http://{}/api/v1/report_tensor_execution_order",
+            self.server_addr
+        );
 
-        let resp = reqwest::Client::new()
-            .post(uri)
-            .json(&batch)
-            .send()
-            .await?;
+        let resp = reqwest::Client::new().post(uri).json(&batch).send().await?;
 
         Ok(resp)
     }
