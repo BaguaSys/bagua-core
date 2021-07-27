@@ -3,7 +3,12 @@ pub mod runtime;
 
 use crate::exporter::agent::AgentAsyncClientHTTP;
 use crate::exporter::Exporter;
-use opentelemetry::{global, sdk, sdk::trace::{TraceRuntime, TrySend}, trace::Tracer, trace::TracerProvider};
+use opentelemetry::{
+    global, sdk,
+    sdk::trace::{TraceRuntime, TrySend},
+    trace::Tracer,
+    trace::TracerProvider,
+};
 
 use opentelemetry;
 

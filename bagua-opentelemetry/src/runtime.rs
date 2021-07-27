@@ -1,11 +1,16 @@
-use opentelemetry::{global, sdk, sdk::trace::{TraceRuntime, TrySend}, trace::Tracer, trace::TracerProvider};
-use std::time::Duration;
 use futures::{future::BoxFuture, Stream};
+use opentelemetry::{
+    global, sdk,
+    sdk::trace::{TraceRuntime, TrySend},
+    trace::Tracer,
+    trace::TracerProvider,
+};
+use std::time::Duration;
 
 use opentelemetry;
+use opentelemetry::runtime::Runtime;
 use opentelemetry::sdk::trace::BatchMessage;
 use opentelemetry::trace::TraceError;
-use opentelemetry::runtime::Runtime;
 
 #[derive(Debug, Clone)]
 pub struct BaguaTraceRuntime;
@@ -22,7 +27,6 @@ const CHANNEL_FULL_ERROR: &str =
     "cannot send span to the batch span processor because the channel is full";
 const CHANNEL_CLOSED_ERROR: &str =
     "cannot send span to the batch span processor because the channel is closed";
-
 
 #[derive(Debug)]
 pub struct MySender {
@@ -70,7 +74,7 @@ impl TraceRuntime for BaguaTraceRuntime {
     fn batch_message_channel(&self, capacity: usize) -> (Self::Sender, Self::Receiver) {
         let (sender, receiver) = tokio::sync::mpsc::channel(capacity);
         (
-            MySender{ inner: sender },
+            MySender { inner: sender },
             tokio_stream::wrappers::ReceiverStream::new(receiver),
         )
     }
