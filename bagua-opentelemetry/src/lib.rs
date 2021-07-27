@@ -12,7 +12,7 @@ use opentelemetry::{
     trace::TracerProvider,
 };
 
-pub fn init_tracer<R: TraceRuntime>(autotune_server_addr: &str) -> impl Tracer {
+pub fn init_tracer(autotune_server_addr: &str) -> impl Tracer {
     let exporter = Exporter {
         uploader: AgentAsyncClientHTTP::new(autotune_server_addr.to_string()),
     };
