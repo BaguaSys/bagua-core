@@ -1,5 +1,5 @@
 use crate::BaguaCoreError;
-use bagua_opentelemetry::{init_tracer, runtime::BaguaTraceRuntime};
+use bagua_opentelemetry::init_tracer;
 use once_cell::sync::Lazy;
 use opentelemetry;
 use parking_lot::Mutex;

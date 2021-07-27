@@ -1,5 +1,4 @@
 pub mod exporter;
-pub mod runtime;
 
 use crate::exporter::agent::AgentAsyncClientHTTP;
 use crate::exporter::Exporter;
