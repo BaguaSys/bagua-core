@@ -1,12 +1,12 @@
 use crate::BaguaCoreError;
 use bagua_opentelemetry::init_tracer;
+use bagua_opentelemetry::{init_tracer, runtime::BaguaTraceRuntime};
 use once_cell::sync::Lazy;
+use opentelemetry;
 use opentelemetry;
 use parking_lot::Mutex;
 use scheduled_thread_pool::ScheduledThreadPool;
 use serde::{Deserialize, Serialize};
-use bagua_opentelemetry::{init_tracer, runtime::BaguaTraceRuntime};
-use opentelemetry;
 
 #[allow(dead_code)]
 pub static SCHEDULED_THREAD_POOL: Lazy<ScheduledThreadPool> =
