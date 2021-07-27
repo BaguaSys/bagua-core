@@ -17,7 +17,7 @@ pub static TELEMETRY: Lazy<Option<Mutex<BaguaCommCoreTelemetry>>> =
             Some(Mutex::new(BaguaCommCoreTelemetry::new(x.as_str())))
         }
         Err(_) => {
-            tracing::warn!("auto tuning server not detected, may experience degraded performance");
+            tracing::info!("auto tuning server not detected, may experience degraded performance");
             None
         }
     });
