@@ -51,7 +51,7 @@ impl Default for TelemetryPayload {
 
 impl BaguaCommCoreTelemetry {
     pub fn new(server_addr: &str) -> Self {
-        let _tracer = init_tracer(bagua_opentelemetry::runtime::BaguaTraceRuntime, server_addr);
+        let _tracer = init_tracer(server_addr);
         Self {
             server_addr: server_addr.to_string(),
             current_payload: TelemetryPayload::default(),
