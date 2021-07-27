@@ -1,8 +1,11 @@
 pub mod exporter;
+pub mod runtime;
 
 use crate::exporter::agent::AgentAsyncClientHTTP;
 use crate::exporter::Exporter;
-use opentelemetry::{global, sdk, sdk::trace::TraceRuntime, trace::Tracer, trace::TracerProvider};
+use opentelemetry::{global, sdk, sdk::trace::{TraceRuntime, TrySend}, trace::Tracer, trace::TracerProvider};
+
+use opentelemetry;
 
 pub fn init_tracer<R: TraceRuntime>(runtime: R, autotune_server_addr: &str) -> impl Tracer {
     let exporter = Exporter {

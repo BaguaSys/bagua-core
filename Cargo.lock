@@ -266,12 +266,14 @@ version = "0.1.0"
 dependencies = [
  "async-std",
  "async-trait",
+ "futures",
  "hyper",
  "opentelemetry",
  "reqwest",
  "serde",
  "serde_json",
  "tokio",
+ "tokio-stream",
  "tracing",
 ]
 
