@@ -1,5 +1,7 @@
 use crate::BaguaCoreError;
+use bagua_opentelemetry::init_tracer;
 use once_cell::sync::Lazy;
+use opentelemetry;
 use parking_lot::Mutex;
 use scheduled_thread_pool::ScheduledThreadPool;
 use serde::{Deserialize, Serialize};
