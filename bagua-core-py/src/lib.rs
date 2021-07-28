@@ -339,16 +339,6 @@ impl BaguaCommBackendPy {
         py.allow_threads(|| self.inner.wait_pending_comm_ops())
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
-
-    pub fn execute_post_backward_comm_ops(&self, py: Python) -> PyResult<usize> {
-        py.allow_threads(|| self.inner.execute_post_backward_comm_ops())
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
-    }
-
-    pub fn wait_pending_post_backward_comm_ops(&self, py: Python) -> PyResult<usize> {
-        py.allow_threads(|| self.inner.wait_pending_post_backward_comm_ops())
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
-    }
 }
 
 #[pyclass(dict)]
