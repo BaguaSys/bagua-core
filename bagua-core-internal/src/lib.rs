@@ -171,7 +171,7 @@ impl BaguaCommBackend {
     }
 }
 
-static TELEMETRY_INIT_ONCE = std::sync::Once::new();
+static TELEMETRY_INIT_ONCE: std::sync::Once = std::sync::Once::new();
 
 impl BaguaCommBackend {
     pub fn new(schedule_channel_cap: usize, device_id: usize) -> BaguaCommBackend {
@@ -191,7 +191,7 @@ impl BaguaCommBackend {
             match std::env::var("AUTO_TUNE_SERVER_ADDR") {
                 Ok(server_addr) => {
                     tracing::info!("detected auto tuning server, connecting");
-                    bagua_opentelemetry::init_tracer(server_addr);
+                    bagua_opentelemetry::init_tracer(&server_addr);
                 }
                 Err(_) => {
                     tracing::warn!("auto tuning server not detected, may experience degraded performance");
