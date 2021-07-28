@@ -340,11 +340,6 @@ impl BaguaCommBackendPy {
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
-    pub fn start_upload_telemetry(&self, skip: bool, py: Python) -> PyResult<()> {
-        py.allow_threads(|| self.inner.start_upload_telemetry(skip))
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
-    }
-
     pub fn execute_post_backward_comm_ops(&self, py: Python) -> PyResult<usize> {
         py.allow_threads(|| self.inner.execute_post_backward_comm_ops())
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
