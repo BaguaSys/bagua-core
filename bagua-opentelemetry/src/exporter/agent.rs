@@ -17,12 +17,14 @@ pub struct BaguaBatch {
 #[derive(Debug)]
 pub struct AgentAsyncClientHTTP {
     server_addr: String,
+    client: reqwest::Client,
 }
 
 impl AgentAsyncClientHTTP {
     pub fn new(server_addr: String) -> AgentAsyncClientHTTP {
         Self {
             server_addr: server_addr,
+            client: reqwest::Client::new(),
         }
     }
 
@@ -35,7 +37,7 @@ impl AgentAsyncClientHTTP {
             self.server_addr
         );
 
-        let resp = reqwest::Client::new().post(uri).json(&batch).send().await?;
+        let resp = self.client.post(uri).json(&batch).send().await?;
 
         Ok(resp)
     }

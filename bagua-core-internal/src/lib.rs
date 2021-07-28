@@ -10,11 +10,9 @@ pub mod datatypes;
 pub mod events;
 pub mod kernels;
 pub mod resource_pool;
-pub mod telemetry;
 mod torch_ffi;
 
 use crate::comm_ops::CommOpTrait;
-use crate::telemetry::{SCHEDULED_THREAD_POOL, TELEMETRY};
 use cpp::cpp;
 use datatypes::{BaguaBucket, BaguaTensor};
 use events::BaguaEventChannel;
@@ -30,6 +28,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
+use bagua_opentelemetry;
 
 cpp! {{
 #include <Al.hpp>
@@ -172,6 +171,8 @@ impl BaguaCommBackend {
     }
 }
 
+static TELEMETRY_INIT_ONCE = std::sync::Once::new();
+
 impl BaguaCommBackend {
     pub fn new(schedule_channel_cap: usize, device_id: usize) -> BaguaCommBackend {
         unsafe {
@@ -185,6 +186,18 @@ impl BaguaCommBackend {
             flume::unbounded();
         let (monitor_op_finish_channel_sender, monitor_op_finish_channel_receiver) =
             flume::unbounded();
+
+        TELEMETRY_INIT_ONCE.call_once(|| {
+            match std::env::var("AUTO_TUNE_SERVER_ADDR") {
+                Ok(server_addr) => {
+                    tracing::info!("detected auto tuning server, connecting");
+                    bagua_opentelemetry::init_tracer(server_addr);
+                }
+                Err(_) => {
+                    tracing::warn!("auto tuning server not detected, may experience degraded performance");
+                }
+            };
+        });
 
         BaguaCommBackend {
             ordered_buckets: Default::default(),
@@ -319,29 +332,6 @@ impl BaguaCommBackend {
                 Err(_) => return Ok(num_ev),
             }
         }
-    }
-
-    pub fn start_upload_telemetry(&self, skip: bool) -> Result<(), BaguaCoreError> {
-        SCHEDULED_THREAD_POOL.execute(move || match TELEMETRY.as_ref() {
-            None => {}
-            Some(x) => {
-                let mut guard = x.lock();
-                match skip {
-                    true => {
-                        guard.clear();
-                    }
-                    false => {
-                        match guard.push_payload_and_clear() {
-                            Ok(_) => {}
-                            Err(x) => {
-                                tracing::error!("{:?}", x)
-                            }
-                        };
-                    }
-                }
-            }
-        });
-        Ok(())
     }
 
     pub fn execute_post_backward_comm_ops(&self) -> Result<usize, BaguaCoreError> {
