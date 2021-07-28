@@ -1455,8 +1455,6 @@ dependencies = [
  "rand",
  "serde",
  "thiserror",
- "tokio",
- "tokio-stream",
 ]
 
 [[package]]
