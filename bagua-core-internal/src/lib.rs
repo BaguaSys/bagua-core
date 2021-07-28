@@ -13,6 +13,7 @@ pub mod resource_pool;
 mod torch_ffi;
 
 use crate::comm_ops::CommOpTrait;
+use bagua_opentelemetry;
 use cpp::cpp;
 use datatypes::{BaguaBucket, BaguaTensor};
 use events::BaguaEventChannel;
@@ -28,7 +29,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
-use bagua_opentelemetry;
 
 cpp! {{
 #include <Al.hpp>
@@ -194,7 +194,9 @@ impl BaguaCommBackend {
                     bagua_opentelemetry::init_tracer(&server_addr);
                 }
                 Err(_) => {
-                    tracing::warn!("auto tuning server not detected, may experience degraded performance");
+                    tracing::warn!(
+                        "auto tuning server not detected, may experience degraded performance"
+                    );
                 }
             };
         });
