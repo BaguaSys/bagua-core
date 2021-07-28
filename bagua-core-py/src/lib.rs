@@ -414,23 +414,41 @@ impl BaguaBucketPy {
         communicator_intranode: Option<&BaguaSingleCommunicatorPy>,
         hierarchical: bool,
         peer_selection_mode: String,
-        communication_interval: usize,
-        compression: Option<String>,
-        weight: Option<PyRef<BaguaTensorPy>>,
-        left_peer_weight: Option<PyRef<BaguaTensorPy>>,
-        right_peer_weight: Option<PyRef<BaguaTensorPy>>,
+        peer_weight: PyRef<BaguaTensorPy>,
     ) -> PyResult<()> {
         self.inner.append_decentralized_synchronous_op(
             communicator_internode.map(|x| &x.inner),
             communicator_intranode.map(|x| &x.inner),
             hierarchical,
             peer_selection_mode,
-            communication_interval,
-            compression,
-            weight.map(|x| (*x).inner.clone()),
-            left_peer_weight.map(|x| (*x).inner.clone()),
-            right_peer_weight.map(|x| (*x).inner.clone()),
+            (*peer_weight).inner.clone(),
         );
+        Ok(())
+    }
+
+    #[args(hierarchical = "false", communication_interval = "1")]
+    pub fn append_low_precision_decentralized_synchronous_op(
+        &mut self,
+        communicator_internode: Option<&BaguaSingleCommunicatorPy>,
+        communicator_intranode: Option<&BaguaSingleCommunicatorPy>,
+        hierarchical: bool,
+        peer_selection_mode: String,
+        compression: String,
+        weight: PyRef<BaguaTensorPy>,
+        left_peer_weight: PyRef<BaguaTensorPy>,
+        right_peer_weight: PyRef<BaguaTensorPy>,
+    ) -> PyResult<()> {
+        self.inner
+            .append_low_precision_decentralized_synchronous_op(
+                communicator_internode.map(|x| &x.inner),
+                communicator_intranode.map(|x| &x.inner),
+                hierarchical,
+                peer_selection_mode,
+                compression,
+                (*weight).inner.clone(),
+                (*left_peer_weight).inner.clone(),
+                (*right_peer_weight).inner.clone(),
+            );
         Ok(())
     }
 
