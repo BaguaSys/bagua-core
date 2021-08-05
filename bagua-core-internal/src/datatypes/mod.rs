@@ -9,7 +9,6 @@ use crate::comm_ops::python_ffi_op::PythonFFIOp;
 use crate::comm_ops::CommOpTrait;
 use crate::communicators::{BaguaCommunicator, BaguaSingleCommunicator};
 use crate::resource_pool::{CudaMemory, CUDA_DEVICE_MEMORY_POOL};
-use crate::telemetry::TELEMETRY;
 use crate::torch_ffi::root::c10::{DeviceType, StorageImpl, TensorImpl};
 use crate::{kernels, BaguaCoreError};
 use itertools::Itertools;
@@ -36,6 +35,7 @@ pub enum BaguaReductionOp {
     BOR,
     BAND,
     BXOR,
+    AVG,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -788,12 +788,6 @@ impl BaguaTensor {
     pub fn mark_comm_ready(&self, cuda_event_ptr: u64) {
         if cuda_event_ptr == 0 {
             tracing::info!("mark comm ready with an event 0, ignoring event");
-        }
-        match TELEMETRY.as_ref() {
-            None => {}
-            Some(ref x) => {
-                x.lock().new_tensor_ready(self.inner.read().name.as_str());
-            }
         }
         let mut guard = self.inner.write();
         guard.ready_for_comm = true;

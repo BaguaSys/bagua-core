@@ -30,6 +30,8 @@ num-traits = "0.2"
 num-derive = "0.3"
 display_utils = "0.4.0"
 cuda-runtime-sys = "0.3.0-alpha.1"
+opentelemetry = { version = "0.15", features = ["serialize", "metrics"] }
+bagua-opentelemetry = { path = "../bagua-opentelemetry" }
 
 [dependencies.pyo3]
 version = "0.14.1"
@@ -41,4 +43,4 @@ cmake = "0.1"
 cpp_build = "0.5"
 cc = "1.0"
 cmd_lib = "1.0"
-which = "4.1"
+which = "4.2"
