@@ -16,7 +16,7 @@ mod torch_ffi;
 use crate::comm_ops::CommOpTrait;
 use crate::telemetry::{SCHEDULED_THREAD_POOL, TELEMETRY};
 use cpp::cpp;
-use datatypes::{BaguaBucket, BaguaTensor, BaguaAsyncCommOp, BaguaExecutionHandle};
+use datatypes::{BaguaBucket, BaguaTensor};
 use events::BaguaEventChannel;
 use flume::RecvTimeoutError;
 use hashbrown::{HashMap, HashSet};
@@ -333,26 +333,6 @@ impl BaguaCommBackend {
             }
         });
         Ok(())
-    }
-
-    pub fn schedule_comm_async(
-        &self,
-        bucket: &BaguaBucket,
-        op: &BaguaAsyncCommOp
-    ) -> Result<BaguaExecutionHandle, BaguaCoreError> {
-        let event_channel = BaguaEventChannel::new("async_comm_op");
-
-        let bucket = Arc::new((*bucket).clone());
-        let channels = self.channels.clone();
-        let handle = op.inner.execute_background_communication_async(bucket, &channels, &event_channel);
-
-        self
-            .channels
-            .not_waited_events_sender
-            .send(event_channel)
-            .map_err(|e| BaguaCoreError::InternalChannelError(format!("{:?}", e)))?;
-
-        Ok(handle)
     }
 
 }

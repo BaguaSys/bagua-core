@@ -6,7 +6,7 @@ use crate::comm_ops::decentralized_full_precision_synchronous::{
 use crate::comm_ops::decentralized_low_precision_synchronous::DecentralizedLowPrecisionSynchronous;
 use crate::comm_ops::decentralized_full_precision_asynchronous::DecentralizedFullPrecisionAsynchronous;
 use crate::comm_ops::python_ffi_op::PythonFFIOp;
-use crate::comm_ops::{CommOpTrait, AsyncCommOpTrait};
+use crate::comm_ops::CommOpTrait;
 use crate::communicators::{BaguaCommunicator, BaguaSingleCommunicator};
 use crate::resource_pool::{CudaMemory, CUDA_DEVICE_MEMORY_POOL};
 use crate::telemetry::TELEMETRY;
@@ -21,6 +21,7 @@ use sized_object_pool::DynamicPoolItem;
 use std::ffi::c_void;
 use std::fmt::Debug;
 use std::sync::Arc;
+use cuda_runtime_sys::{cudaStream_t, cudaEvent_t};
 
 // must be consistent with Aluminum ReductionOperator: https://github.com/BaguaSys/Aluminum/blob/master/include/aluminum/base.hpp
 #[derive(Clone, Copy, Debug, PartialEq, FromPrimitive)]
@@ -139,7 +140,7 @@ pub trait RawBaguaTensor: Debug {
             });
         }
     }
-    
+
     fn async_model_average(&mut self, reduced_tensor: &dyn RawBaguaTensor, tensor: &dyn RawBaguaTensor, nranks: f32,  stream_ptr: u64) {
         assert_eq!(self.dtype(), reduced_tensor.dtype());
         assert_eq!(self.num_elements(), reduced_tensor.num_elements());
@@ -1070,17 +1071,6 @@ impl<'b> Drop for BaguaCommunicationTensor<'b> {
 }
 
 #[derive(Debug, Clone)]
-pub struct BaguaAsyncCommOp {
-    pub name: String,
-    pub inner: Arc<dyn AsyncCommOpTrait + Send + Sync>
-}
-
-#[derive(Debug)]
-pub struct BaguaExecutionHandle {
-    pub inner: std::thread::JoinHandle<()>
-}
-
-#[derive(Debug, Clone)]
 pub struct BaguaBucket {
     pub name: String,
     pub inner: Arc<Mutex<BaguaBucketInner>>,
@@ -1242,15 +1232,29 @@ impl BaguaBucket {
         communicator_internode: Option<&BaguaSingleCommunicator>,
         communicator_intranode: Option<&BaguaSingleCommunicator>,
         peer_selection_mode: String,
-        sync_interval_ms: u64,
-    ) -> BaguaAsyncCommOp {
+        torch_stream: u64,
+    ) {
         let communicator =
             BaguaCommunicator::new(communicator_internode, communicator_intranode, false)
                 .expect("cannot create communicator");
 
-        BaguaAsyncCommOp {
-            name: String::from("decentralized_async_op"),
-            inner: Arc::new(DecentralizedFullPrecisionAsynchronous {
+        let mut dst_ready_event = std::ptr::null_mut() as cudaEvent_t;
+        let mut src_ready_event = std::ptr::null_mut() as cudaEvent_t;
+
+        let dst_ready_event_ptr = &mut dst_ready_event;
+        let src_ready_event_ptr = &mut src_ready_event;
+
+        unsafe {
+            cpp::cpp!([dst_ready_event_ptr as "cudaEvent_t *",
+                      src_ready_event_ptr as "cudaEvent_t *"]
+            {
+                CUDACHECK(cudaEventCreate(dst_ready_event_ptr));
+                CUDACHECK(cudaEventCreate(src_ready_event_ptr));
+            });
+        }
+
+        let comm_op: Arc<dyn CommOpTrait + Send + Sync> = Arc::new(
+            DecentralizedFullPrecisionAsynchronous {
                 communicator,
                 peer_selection_mode: match peer_selection_mode.as_str() {
                     "all" => PeerSelectionMode::All,
@@ -1258,9 +1262,12 @@ impl BaguaBucket {
                         unimplemented!("unsupported peer_selection_mode for low precision decentralized algorithm (should be `ring`)")
                     }
                 },
-                sync_interval_ms
-            })
-        }
+                torch_stream,
+                src_ready_event: src_ready_event as u64,
+                dst_ready_event: dst_ready_event as u64,
+            });
+
+        self.inner.lock().comm_ops.push(comm_op);
     }
 
     pub fn ready_for_comm(&self) -> bool {

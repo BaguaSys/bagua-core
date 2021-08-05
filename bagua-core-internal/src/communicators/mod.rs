@@ -361,16 +361,6 @@ impl BaguaCommunicator {
         }
     }
     
-    pub fn device_id(&self) -> usize {
-        match self {
-            BaguaCommunicator::SingleCommunicator(x) => x.inner.device_id,
-            BaguaCommunicator::HierarchicalCommunicator(x) => match x {
-                BaguaHierarchicalCommunicator::Leader(x) => x.internode.inner.device_id,
-                BaguaHierarchicalCommunicator::Worker(x) => x.intranode.inner.device_id,
-            },
-        }
-    }
-
     pub fn execute_communication(
         &self,
         tensor: &mut BaguaCommunicationTensor,
