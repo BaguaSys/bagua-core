@@ -50,6 +50,14 @@ impl BaguaSingleCommunicatorPy {
         self.inner.device_id()
     }
 
+    pub fn abort(&self) {
+       self.inner.abort()
+    }
+
+    pub fn check_abort(&self) -> bool {
+       self.inner.check_abort()
+    }
+
     pub fn allreduce(&self, send_tensor: &BaguaTensorPy, recv_tensor: &mut BaguaTensorPy, op: u8) {
         self.inner.allreduce(
             &send_tensor.inner,
