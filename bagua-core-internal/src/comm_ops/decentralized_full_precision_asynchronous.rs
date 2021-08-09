@@ -2,12 +2,11 @@ use crate::comm_ops::decentralized_full_precision_synchronous::PeerSelectionMode
 use crate::comm_ops::CommOpTrait;
 use crate::communicators::BaguaCommunicator;
 use crate::datatypes::{BaguaBucket, BaguaReductionOp, BaguaTensorRaw, RawBaguaTensor};
-use crate::resource_pool::CUDA_DEVICE_MEMORY_POOL;
+use crate::resource_pool::{CUDA_DEVICE_MEMORY_POOL, CUDA_EVENT_POOL};
 use crate::{BaguaCommOpChannels, BaguaCoreError};
 use crate::events::BaguaEventChannel;
 use std::sync::Arc;
 use std::time::Duration;
-use cuda_runtime_sys::{cudaStream_t, cudaEvent_t};
 
 
 #[derive(Debug)]
@@ -15,8 +14,6 @@ pub struct DecentralizedFullPrecisionAsynchronous {
     pub communicator: BaguaCommunicator,
     pub peer_selection_mode: PeerSelectionMode,
     pub torch_stream: u64,
-    pub src_ready_event: u64,
-    pub dst_ready_event: u64,
 }
 
 impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
@@ -41,8 +38,6 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
         let peer_mode = &self.peer_selection_mode;
 
         let torch_stream = self.torch_stream;
-        let src_ready_event = self.src_ready_event;
-        let dst_ready_event = self.dst_ready_event;
 
         self.communicator.execute_communication(
                 &mut communication_tensor,
@@ -83,6 +78,9 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
              // use default stream to copy weights
              temp_tensor.clone_from(&t.raw, torch_stream as u64);
 
+             let src_ready_event = CUDA_EVENT_POOL.take().event;
+             let dst_ready_event = CUDA_EVENT_POOL.take().event;
+
              unsafe {
                  cpp::cpp!([
                      src_ready_event as "cudaEvent_t",
@@ -94,14 +92,24 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                  });
              }
 
-             c.allreduce(&temp_tensor, &mut reduced_tensor, BaguaReductionOp::SUM);
+             match peer_mode {
+                PeerSelectionMode::All => {
+                    c.allreduce(&temp_tensor, &mut reduced_tensor, BaguaReductionOp::SUM);
+                }
+                PeerSelectionMode::Ring => {
+                    unimplemented!()
+                }
+                PeerSelectionMode::ShiftOne => {
+                    unimplemented!()
+                }
+            };
 
              unsafe {
                   cpp::cpp!([comm_stream as "cudaStream_t"] { CUDACHECK(cudaStreamSynchronize(comm_stream)); });
              }
 
              if c.check_abort() {
-                 tracing::debug!("#{} async model average on process {} early stopped due to communicator abortion", c.rank, c.rank);
+                 tracing::debug!("async model average on process {} early stopped due to communicator abortion", c.rank);
                  return
              }
 

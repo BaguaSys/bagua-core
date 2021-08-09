@@ -20,7 +20,7 @@ use sized_object_pool::DynamicPoolItem;
 use std::ffi::c_void;
 use std::fmt::Debug;
 use std::sync::Arc;
-use cuda_runtime_sys::{cudaStream_t, cudaEvent_t};
+
 
 // must be consistent with Aluminum ReductionOperator: https://github.com/BaguaSys/Aluminum/blob/master/include/aluminum/base.hpp
 #[derive(Clone, Copy, Debug, PartialEq, FromPrimitive)]
@@ -1232,33 +1232,16 @@ impl BaguaBucket {
             BaguaCommunicator::new(communicator_internode, communicator_intranode, false)
                 .expect("cannot create communicator");
 
-        let mut dst_ready_event = std::ptr::null_mut() as cudaEvent_t;
-        let mut src_ready_event = std::ptr::null_mut() as cudaEvent_t;
-
-        let dst_ready_event_ptr = &mut dst_ready_event;
-        let src_ready_event_ptr = &mut src_ready_event;
-
-        unsafe {
-            cpp::cpp!([dst_ready_event_ptr as "cudaEvent_t *",
-                      src_ready_event_ptr as "cudaEvent_t *"]
-            {
-                CUDACHECK(cudaEventCreate(dst_ready_event_ptr));
-                CUDACHECK(cudaEventCreate(src_ready_event_ptr));
-            });
-        }
-
         let comm_op: Arc<dyn CommOpTrait + Send + Sync> = Arc::new(
             DecentralizedFullPrecisionAsynchronous {
                 communicator,
                 peer_selection_mode: match peer_selection_mode.as_str() {
                     "all" => PeerSelectionMode::All,
                     &_ => {
-                        unimplemented!("unsupported peer_selection_mode for low precision decentralized algorithm (should be `ring`)")
+                        unimplemented!("unsupported peer_selection_mode for decentralized asynchronous algorithm (should be `all`)")
                     }
                 },
                 torch_stream,
-                src_ready_event: src_ready_event as u64,
-                dst_ready_event: dst_ready_event as u64,
             });
 
         self.inner.lock().comm_ops.push(comm_op);
