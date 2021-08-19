@@ -89,7 +89,6 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                  });
              }
 
-
              match peer_mode {
                 PeerSelectionMode::All => {
                     c.allreduce(&temp_tensor, &mut reduced_tensor, BaguaReductionOp::SUM);
