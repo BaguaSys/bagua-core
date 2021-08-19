@@ -3,9 +3,8 @@ use crate::datatypes::{
 };
 use crate::BaguaCoreError;
 use itertools::Itertools;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-
+use std::sync::Arc;
 
 #[derive(Clone, Debug)]
 pub struct BaguaCommunicatorInner {
@@ -55,7 +54,7 @@ impl BaguaSingleCommunicator {
                 rank,
                 nranks,
                 device_id,
-                aborted: Arc::new(AtomicBool::new(false)), 
+                aborted: Arc::new(AtomicBool::new(false)),
             }),
         }
     }
