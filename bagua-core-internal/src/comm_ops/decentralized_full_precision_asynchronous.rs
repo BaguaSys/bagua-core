@@ -43,6 +43,7 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                 false,
                 false,
                 &mut |c, t| {
+
              let start_time = std::time::Instant::now();
              tracing::debug!("async model average start");
 
