@@ -3,8 +3,9 @@ use crate::datatypes::{
 };
 use crate::BaguaCoreError;
 use itertools::Itertools;
-use parking_lot::Mutex;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
 
 #[derive(Clone, Debug)]
 pub struct BaguaCommunicatorInner {
@@ -13,7 +14,7 @@ pub struct BaguaCommunicatorInner {
     pub rank: usize,
     pub nranks: usize,
     pub device_id: usize,
-    pub aborted: Arc<Mutex<bool>>,
+    pub aborted: Arc<AtomicBool>,
 }
 
 #[derive(Clone, Debug)]
@@ -54,7 +55,7 @@ impl BaguaSingleCommunicator {
                 rank,
                 nranks,
                 device_id,
-                aborted: Arc::new(Mutex::new(false)),
+                aborted: Arc::new(AtomicBool::new(false)), 
             }),
         }
     }
@@ -456,7 +457,8 @@ impl BaguaCommunicatorInner {
     pub fn abort(&self) {
         let communicator_ptr = self.comm_ptr;
 
-        *self.aborted.lock() = true;
+        self.aborted.store(true, Ordering::Relaxed);
+
         unsafe {
             cpp::cpp!([communicator_ptr as "Al::NCCLCommunicator*"]
             {
@@ -466,7 +468,7 @@ impl BaguaCommunicatorInner {
     }
 
     pub fn check_abort(&self) -> bool {
-        *self.aborted.lock()
+        self.aborted.load(Ordering::Relaxed)
     }
 
     pub fn broadcast(&self, tensor: &mut dyn RawBaguaTensor, root_rank: i32) {
