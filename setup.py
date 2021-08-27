@@ -170,7 +170,7 @@ if __name__ == "__main__":
     cwd = os.path.dirname(os.path.abspath(__file__))
 
     if int(os.getenv("BAGUA_NO_INSTALL_DEPS", 0)) == 0 and \
-            len(sys.argv) > 1 and sys.argv[1] == "install":
+            len(sys.argv) > 1 and sys.argv[1] in ["install", "bdist_wheel"]:
         print(
             colorama.Fore.BLACK
             + colorama.Back.CYAN
