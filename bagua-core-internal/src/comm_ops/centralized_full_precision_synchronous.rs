@@ -21,7 +21,7 @@ impl CommOpTrait for CentralizedFullPrecisionSynchronous {
     ) {
         let bucket = bucket.inner.lock();
         let stream_ptr = self.communicator.stream_ptr();
-        let mut communication_tensor = bucket.get_communication_tensor(stream_ptr, false, false);
+        let mut communication_tensor = bucket.get_communication_tensor(stream_ptr, false, false, false);
         self.communicator.execute_communication(
             &mut communication_tensor,
             self.average,

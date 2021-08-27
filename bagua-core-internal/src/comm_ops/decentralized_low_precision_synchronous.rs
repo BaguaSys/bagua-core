@@ -30,7 +30,7 @@ impl CommOpTrait for DecentralizedLowPrecisionSynchronous {
         let stream_ptr = self.communicator.stream_ptr();
 
         let mut communication_tensor =
-            bucket_guard.get_communication_tensor(stream_ptr, false, false);
+            bucket_guard.get_communication_tensor(stream_ptr, false, false, false);
 
         let peer_mode = &self.peer_selection_mode;
 

@@ -26,7 +26,7 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
 
         let mut communication_tensor = match &self.communicator {
             BaguaCommunicator::SingleCommunicator(_) => {
-                bucket_guard.get_communication_tensor(comm_stream, false, false)
+                bucket_guard.get_communication_tensor(comm_stream, false, false, true)
             }
             BaguaCommunicator::HierarchicalCommunicator(x) => {
                 panic!("asynchronous op only accepts non-hierarchical communicator");
@@ -115,12 +115,12 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                  {
                      cudaError_t err = cudaEventRecord(comm_ready_event, comm_stream);
                      if (err != cudaSuccess) {
-                         printf("Failed: Cuda error %s:%d '%s'\n", __FILE__,__LINE__,cudaGetErrorString(err));
+                         printf("Warning: Cuda error %s:%d '%s'\n", __FILE__,__LINE__,cudaGetErrorString(err));
                          return false;
                      }
                      err = cudaEventSynchronize(comm_ready_event);
                      if (err != cudaSuccess) {
-                         printf("Failed: Cuda error %s:%d '%s'\n", __FILE__,__LINE__,cudaGetErrorString(err));
+                         printf("Warning: Cuda error %s:%d '%s'\n", __FILE__,__LINE__,cudaGetErrorString(err));
                          return false;
                      }
                      return true;
