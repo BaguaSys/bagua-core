@@ -44,6 +44,11 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                 false,
                 &mut |c, t| {
 
+             if c.check_abort() {
+                 tracing::debug!("async model average on process {} directly aborted", c.rank);
+                 return
+             }
+             
              let start_time = std::time::Instant::now();
              tracing::debug!("#{} async model average start", c.rank);
 
@@ -124,6 +129,7 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
 
              if !ret {
                  tracing::debug!("async model average on process {} early stopped due to communicator failure", c.rank);
+                 c.set_abort();
                  return
              }
 
