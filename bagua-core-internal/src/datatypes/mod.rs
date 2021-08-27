@@ -1076,7 +1076,7 @@ impl<'b> Drop for BaguaCommunicationTensor<'b> {
                 cpp::cpp!([stream_ptr as "cudaStream_t"]
                 {
                     CUDACHECK(cudaStreamSynchronize(stream_ptr));
-                }); 
+                });
             }
         }
         tracing::debug!("one communication finished");

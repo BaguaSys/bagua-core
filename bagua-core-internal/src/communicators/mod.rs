@@ -456,8 +456,7 @@ impl BaguaCommunicatorInner {
     pub fn abort(&self) {
         let communicator_ptr = self.comm_ptr;
 
-      //  self.aborted.store(true, Ordering::Relaxed);
-        self. set_abort();
+        self.set_abort();
 
         unsafe {
             cpp::cpp!([communicator_ptr as "Al::NCCLCommunicator*"]

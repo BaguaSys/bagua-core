@@ -48,7 +48,7 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                  tracing::debug!("async model average on process {} directly aborted", c.rank);
                  return
              }
-             
+
              let start_time = std::time::Instant::now();
              tracing::debug!("#{} async model average start", c.rank);
 
