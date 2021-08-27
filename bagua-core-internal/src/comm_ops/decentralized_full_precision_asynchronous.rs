@@ -45,7 +45,7 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                 &mut |c, t| {
 
              let start_time = std::time::Instant::now();
-             tracing::debug!("async model average start");
+             tracing::debug!("#{} async model average start", c.rank);
 
              let temp_buf = CUDA_DEVICE_MEMORY_POOL[t.raw.device_id()]
              .try_pull(t.raw.num_elements_allocated() * t.raw.dtype().bytes())
@@ -103,14 +103,28 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
 
              let comm_ready_event = CUDA_EVENT_POOL.take().event;
 
-             unsafe {
+             let ret = unsafe {
                  cpp::cpp!([
                      comm_ready_event as "cudaEvent_t",
-                     comm_stream as "cudaStream_t"]
+                     comm_stream as "cudaStream_t"] -> bool as "bool"
                  {
-                     CUDACHECK(cudaEventRecord(comm_ready_event, comm_stream));
-                     CUDACHECK(cudaEventSynchronize(comm_ready_event));
-                 });
+                     cudaError_t err = cudaEventRecord(comm_ready_event, comm_stream);
+                     if (err != cudaSuccess) {
+                         printf("Failed: Cuda error %s:%d '%s'\n", __FILE__,__LINE__,cudaGetErrorString(err));
+                         return false;
+                     }
+                     err = cudaEventSynchronize(comm_ready_event);
+                     if (err != cudaSuccess) {
+                         printf("Failed: Cuda error %s:%d '%s'\n", __FILE__,__LINE__,cudaGetErrorString(err));
+                         return false;
+                     }
+                     return true;
+                 })
+             };
+
+             if !ret {
+                 tracing::debug!("async model average on process {} early stopped due to communicator failure", c.rank);
+                 return
              }
 
              if c.check_abort() {
