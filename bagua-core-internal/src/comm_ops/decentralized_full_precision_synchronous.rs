@@ -35,14 +35,14 @@ impl CommOpTrait for DecentralizedFullPrecisionSynchronous {
 
         let mut communication_tensor = match &self.communicator {
             BaguaCommunicator::SingleCommunicator(_) => {
-                bucket_guard.get_communication_tensor(stream_ptr, false, false, false)
+                bucket_guard.get_communication_tensor(stream_ptr, false, false)
             }
             BaguaCommunicator::HierarchicalCommunicator(x) => match x {
                 BaguaHierarchicalCommunicator::Leader(_) => {
-                    bucket_guard.get_communication_tensor(stream_ptr, true, true, false)
+                    bucket_guard.get_communication_tensor(stream_ptr, true, true)
                 }
                 BaguaHierarchicalCommunicator::Worker(_) => {
-                    bucket_guard.get_communication_tensor(stream_ptr, false, false, false)
+                    bucket_guard.get_communication_tensor(stream_ptr, false, false)
                 }
             },
         };

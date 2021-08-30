@@ -26,7 +26,7 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
 
         let mut communication_tensor = match &self.communicator {
             BaguaCommunicator::SingleCommunicator(_) => {
-                bucket_guard.get_communication_tensor(comm_stream, false, false, true)
+                bucket_guard.get_communication_tensor(comm_stream, false, false)
             }
             BaguaCommunicator::HierarchicalCommunicator(x) => {
                 panic!("asynchronous op only accepts non-hierarchical communicator");
@@ -45,12 +45,12 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                 &mut |c, t| {
 
              if c.check_abort() {
-                 tracing::debug!("async model average on process {} directly aborted", c.rank);
+                 tracing::debug!("process {} exits due to previous abortion", c.rank);
                  return
              }
 
              let start_time = std::time::Instant::now();
-             tracing::debug!("#{} async model average start", c.rank);
+             tracing::debug!("async model average start");
 
              let temp_buf = CUDA_DEVICE_MEMORY_POOL[t.raw.device_id()]
              .try_pull(t.raw.num_elements_allocated() * t.raw.dtype().bytes())
@@ -113,12 +113,8 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                      comm_ready_event as "cudaEvent_t",
                      comm_stream as "cudaStream_t"] -> bool as "bool"
                  {
-                     cudaError_t err = cudaEventRecord(comm_ready_event, comm_stream);
-                     if (err != cudaSuccess) {
-                         printf("Warning: Cuda error %s:%d '%s'\n", __FILE__,__LINE__,cudaGetErrorString(err));
-                         return false;
-                     }
-                     err = cudaEventSynchronize(comm_ready_event);
+                     CUDACHECK(cudaEventRecord(comm_ready_event, comm_stream));
+                     cudaError_t err = cudaEventSynchronize(comm_ready_event);
                      if (err != cudaSuccess) {
                          printf("Warning: Cuda error %s:%d '%s'\n", __FILE__,__LINE__,cudaGetErrorString(err));
                          return false;
@@ -128,16 +124,15 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
              };
 
              if !ret {
-                 tracing::debug!("async model average on process {} early stopped due to communicator failure", c.rank);
+                 tracing::debug!("process {} early stopped due to communication failure", c.rank);
                  c.set_abort();
                  return
              }
 
              if c.check_abort() {
-                 tracing::debug!("async model average on process {} early stopped due to communicator abortion", c.rank);
+                 tracing::debug!("process {} early stopped due to communicator abortion", c.rank);
                  return
              }
-
 
              // do we need to wait default stream?
              unsafe {

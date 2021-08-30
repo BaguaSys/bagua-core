@@ -921,7 +921,6 @@ pub struct BaguaCommunicationTensor<'b> {
     pub need_copy_back: bool,
     pub bucket: &'b BaguaBucketInner,
     pub stream_ptr: u64,
-    pub weak_sync: bool,
 }
 
 impl BaguaBucketInner {
@@ -966,7 +965,6 @@ impl BaguaBucketInner {
         stream_ptr: u64,
         force_copy: bool,
         force_not_copy_back: bool,
-        weak_sync: bool,
     ) -> BaguaCommunicationTensor {
         for tensor in &self.tensors {
             let event_ptr = { tensor.inner.read().ready_cuda_event_ptr };
@@ -996,7 +994,6 @@ impl BaguaBucketInner {
                     need_copy_back: false,
                     bucket: &self,
                     stream_ptr,
-                    weak_sync: weak_sync,
                 }
             }
             false => {
@@ -1037,7 +1034,6 @@ impl BaguaBucketInner {
                     need_copy_back: if force_not_copy_back { false } else { true },
                     bucket: &self,
                     stream_ptr,
-                    weak_sync: false,
                 }
             }
         }
@@ -1064,20 +1060,10 @@ impl<'b> Drop for BaguaCommunicationTensor<'b> {
         }
 
         unsafe {
-            if self.weak_sync {
-                cpp::cpp!([stream_ptr as "cudaStream_t"]
-                {
-                    cudaError_t err = cudaStreamSynchronize(stream_ptr);
-                    if (err != cudaSuccess) {
-                         printf("Warning: Cuda error %s:%d '%s'\n", __FILE__,__LINE__,cudaGetErrorString(err));
-                     }
-                });
-            } else {
-                cpp::cpp!([stream_ptr as "cudaStream_t"]
-                {
-                    CUDACHECK(cudaStreamSynchronize(stream_ptr));
-                });
-            }
+            cpp::cpp!([stream_ptr as "cudaStream_t"]
+            {
+                CUDACHECK(cudaStreamSynchronize(stream_ptr));
+            });
         }
         tracing::debug!("one communication finished");
     }
