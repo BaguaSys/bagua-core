@@ -89,6 +89,10 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                  });
              }
 
+             if c.check_abort() {
+                 return
+             }
+             
              match peer_mode {
                 PeerSelectionMode::All => {
                     c.allreduce(&temp_tensor, &mut reduced_tensor, BaguaReductionOp::SUM);
@@ -114,7 +118,6 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
              }
 
              if c.check_abort() {
-                 tracing::debug!("async model average on process {} early stopped due to communicator abortion", c.rank);
                  return
              }
 
