@@ -16,6 +16,8 @@ from tqdm import tqdm
 _nccl_records = []
 library_records = {}
 
+ENABLE_BAGUA_NET = os.environ.get("ENABLE_BAGUA_NET", "0")
+
 
 class DownloadProgressBar(tqdm):
     def update_to(self, b=1, bsize=1, tsize=None):
@@ -27,7 +29,8 @@ class DownloadProgressBar(tqdm):
 def download_url(url, output_path):
     with DownloadProgressBar(unit='B', unit_scale=True,
                              miniters=1, desc=url.split('/')[-1]) as t:
-        urllib.request.urlretrieve(url, filename=output_path, reporthook=t.update_to)
+        urllib.request.urlretrieve(
+            url, filename=output_path, reporthook=t.update_to)
 
 
 def _make_nccl_url(public_version, filename):
@@ -52,24 +55,41 @@ def _make_nccl_record(cuda_version, full_version, public_version, filename_linux
 
 
 _nccl_records.append(
-    _make_nccl_record("11.3", "2.9.8", "2.9", "nccl_2.9.8-1+cuda11.3_x86_64.txz")
+    _make_nccl_record("11.3", "2.9.8", "2.9",
+                      "nccl_2.9.8-1+cuda11.3_x86_64.txz")
 )
 _nccl_records.append(
-    _make_nccl_record("11.2", "2.8.4", "2.8", "nccl_2.8.4-1+cuda11.2_x86_64.txz")
+    _make_nccl_record("11.2", "2.8.4", "2.8",
+                      "nccl_2.8.4-1+cuda11.2_x86_64.txz")
 )
 _nccl_records.append(
-    _make_nccl_record("11.1", "2.8.4", "2.8", "nccl_2.8.4-1+cuda11.1_x86_64.txz")
+    _make_nccl_record("11.1", "2.8.4", "2.8",
+                      "nccl_2.8.4-1+cuda11.1_x86_64.txz")
 )
 _nccl_records.append(
-    _make_nccl_record("11.0", "2.9.8", "2.9", "nccl_2.9.8-1+cuda11.0_x86_64.txz")
+    _make_nccl_record("11.0", "2.9.8", "2.9",
+                      "nccl_2.9.8-1+cuda11.0_x86_64.txz")
 )
 _nccl_records.append(
-    _make_nccl_record("10.2", "2.9.8", "2.9", "nccl_2.9.8-1+cuda10.2_x86_64.txz")
+    _make_nccl_record("10.2", "2.9.8", "2.9",
+                      "nccl_2.9.8-1+cuda10.2_x86_64.txz")
 )
 _nccl_records.append(
-    _make_nccl_record("10.1", "2.8.3", "2.8", "nccl_2.8.3-1+cuda10.1_x86_64.txz")
+    _make_nccl_record("10.1", "2.8.3", "2.8",
+                      "nccl_2.8.3-1+cuda10.1_x86_64.txz")
 )
 library_records["nccl"] = _nccl_records
+
+
+def install_baguanet(url, destination):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filename = os.path.join(tmpdir, os.path.basename(url))
+        download_url(url, filename)
+        outdir = os.path.join(tmpdir, "extract")
+        shutil.unpack_archive(filename, outdir)
+        lib_dir = os.path.join(outdir, 'build')
+        for filename in os.listdir(lib_dir):
+            shutil.move(os.path.join(outdir, filename), destination)
 
 
 def install_lib(cuda, prefix, library):
@@ -123,6 +143,9 @@ The current platform ({}) is not supported.""".format(
             subdir = os.listdir(outdir)
             assert len(subdir) == 1
             shutil.move(os.path.join(outdir, subdir[0]), destination)
+            if ENABLE_BAGUA_NET == "1":
+                install_baguanet(
+                    "https://github.com/BaguaSys/bagua-net/releases/download/v0.1.0/bagua-net_refs.tags.v0.1.0_x86_64.tar.gz", destination)
         else:
             assert False
         print("Cleaning up...")
