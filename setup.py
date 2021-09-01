@@ -15,7 +15,6 @@ from tqdm import tqdm
 
 _nccl_records = []
 library_records = {}
-
 ENABLE_BAGUA_NET = os.environ.get("ENABLE_BAGUA_NET", "0")
 
 
@@ -29,8 +28,7 @@ class DownloadProgressBar(tqdm):
 def download_url(url, output_path):
     with DownloadProgressBar(unit='B', unit_scale=True,
                              miniters=1, desc=url.split('/')[-1]) as t:
-        urllib.request.urlretrieve(
-            url, filename=output_path, reporthook=t.update_to)
+        urllib.request.urlretrieve(url, filename=output_path, reporthook=t.update_to)
 
 
 def _make_nccl_url(public_version, filename):
@@ -55,28 +53,25 @@ def _make_nccl_record(cuda_version, full_version, public_version, filename_linux
 
 
 _nccl_records.append(
-    _make_nccl_record("11.3", "2.9.8", "2.9",
-                      "nccl_2.9.8-1+cuda11.3_x86_64.txz")
+    _make_nccl_record("11.4", "2.10.3", "2.10", "nccl_2.10.3-1+cuda11.4_x86_64.txz")
 )
 _nccl_records.append(
-    _make_nccl_record("11.2", "2.8.4", "2.8",
-                      "nccl_2.8.4-1+cuda11.2_x86_64.txz")
+    _make_nccl_record("11.3", "2.10.3", "2.10", "nccl_2.10.3-1+cuda11.0_x86_64.txz")
 )
 _nccl_records.append(
-    _make_nccl_record("11.1", "2.8.4", "2.8",
-                      "nccl_2.8.4-1+cuda11.1_x86_64.txz")
+    _make_nccl_record("11.2", "2.10.3", "2.10", "nccl_2.10.3-1+cuda11.0_x86_64.txz")
 )
 _nccl_records.append(
-    _make_nccl_record("11.0", "2.9.8", "2.9",
-                      "nccl_2.9.8-1+cuda11.0_x86_64.txz")
+    _make_nccl_record("11.1", "2.10.3", "2.10", "nccl_2.10.3-1+cuda11.0_x86_64.txz")
 )
 _nccl_records.append(
-    _make_nccl_record("10.2", "2.9.8", "2.9",
-                      "nccl_2.9.8-1+cuda10.2_x86_64.txz")
+    _make_nccl_record("11.0", "2.10.3", "2.10", "nccl_2.10.3-1+cuda11.0_x86_64.txz")
 )
 _nccl_records.append(
-    _make_nccl_record("10.1", "2.8.3", "2.8",
-                      "nccl_2.8.3-1+cuda10.1_x86_64.txz")
+    _make_nccl_record("10.2", "2.10.3", "2.10", "nccl_2.10.3-1+cuda10.2_x86_64.txz")
+)
+_nccl_records.append(
+    _make_nccl_record("10.1", "2.10.3", "2.10", "nccl_2.10.3-1+cuda10.2_x86_64.txz")
 )
 library_records["nccl"] = _nccl_records
 
@@ -191,7 +186,8 @@ if __name__ == "__main__":
     colorama.init(autoreset=True)
     cwd = os.path.dirname(os.path.abspath(__file__))
 
-    if int(os.getenv("BAGUA_NO_INSTALL_DEPS", 0)) == 0:
+    if int(os.getenv("BAGUA_NO_INSTALL_DEPS", 0)) == 0 and \
+            len(sys.argv) > 1 and sys.argv[1] in ["install", "bdist_wheel"]:
         print(
             colorama.Fore.BLACK
             + colorama.Back.CYAN
