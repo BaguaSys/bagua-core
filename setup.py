@@ -146,7 +146,8 @@ The current platform ({}) is not supported.""".format(
             shutil.move(os.path.join(outdir, subdir[0]), destination)
             if ENABLE_BAGUA_NET == "1":
                 install_baguanet(
-                    "https://github.com/BaguaSys/bagua-net/releases/download/v0.1.0/bagua-net_refs.tags.v0.1.0_x86_64.tar.gz", destination)
+                    "https://github.com/BaguaSys/bagua-net/releases/download/v0.1.0/bagua-net_refs.tags.v0.1.0_x86_64.tar.gz",
+                    os.path.join(destination, 'lib'))
         else:
             assert False
         print("Cleaning up...")
