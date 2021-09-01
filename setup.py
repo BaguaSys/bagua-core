@@ -84,12 +84,13 @@ library_records["nccl"] = _nccl_records
 def install_baguanet(url, destination):
     with tempfile.TemporaryDirectory() as tmpdir:
         filename = os.path.join(tmpdir, os.path.basename(url))
+        print("Downloading {}...".format(url))
         download_url(url, filename)
         outdir = os.path.join(tmpdir, "extract")
         shutil.unpack_archive(filename, outdir)
         lib_dir = os.path.join(outdir, 'build')
         for filename in os.listdir(lib_dir):
-            shutil.move(os.path.join(outdir, filename), destination)
+            shutil.move(os.path.join(lib_dir, filename), destination)
 
 
 def install_lib(cuda, prefix, library):
