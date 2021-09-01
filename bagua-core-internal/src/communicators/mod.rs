@@ -3,6 +3,7 @@ use crate::datatypes::{
 };
 use crate::BaguaCoreError;
 use itertools::Itertools;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
@@ -12,6 +13,7 @@ pub struct BaguaCommunicatorInner {
     pub rank: usize,
     pub nranks: usize,
     pub device_id: usize,
+    pub aborted: Arc<AtomicBool>,
 }
 
 #[derive(Clone, Debug)]
@@ -52,6 +54,7 @@ impl BaguaSingleCommunicator {
                 rank,
                 nranks,
                 device_id,
+                aborted: Arc::new(AtomicBool::new(false)),
             }),
         }
     }
@@ -66,6 +69,14 @@ impl BaguaSingleCommunicator {
 
     pub fn device_id(&self) -> usize {
         self.inner.device_id
+    }
+
+    pub fn abort(&self) {
+        self.inner.abort();
+    }
+
+    pub fn check_abort(&self) -> bool {
+        return self.inner.check_abort();
     }
 
     pub fn allreduce(
@@ -259,17 +270,20 @@ impl BaguaHierarchicalCommunicatorLeader {
         let stream_ptr = intranode_communicator.stream_ptr;
         assert_eq!(communication_tensor.stream_ptr, stream_ptr);
         tracing::debug!("reduce start");
-        intranode_communicator.reduce_inplace(
-            &mut communication_tensor.raw,
-            0,
-            BaguaReductionOp::SUM,
-        );
-        tracing::debug!("reduce done");
         if average {
-            communication_tensor
-                .raw
-                .divide_inplace(stream_ptr, (intranode_communicator.nranks) as f32);
+            intranode_communicator.reduce_inplace(
+                &mut communication_tensor.raw,
+                0,
+                BaguaReductionOp::AVG,
+            );
+        } else {
+            intranode_communicator.reduce_inplace(
+                &mut communication_tensor.raw,
+                0,
+                BaguaReductionOp::SUM,
+            );
         }
+        tracing::debug!("reduce done");
     }
 
     pub fn hierarchical_post(&self, communication_tensor: &mut BaguaCommunicationTensor) {
@@ -288,13 +302,25 @@ pub struct BaguaHierarchicalCommunicatorWorker {
 }
 
 impl BaguaHierarchicalCommunicatorWorker {
-    pub fn hierarchical_worker_pre(&self, communication_tensor: &mut BaguaCommunicationTensor) {
+    pub fn hierarchical_worker_pre(
+        &self,
+        communication_tensor: &mut BaguaCommunicationTensor,
+        average: bool,
+    ) {
         let intranode_communicator = self.intranode.inner.clone();
-        intranode_communicator.reduce_inplace(
-            &mut communication_tensor.raw,
-            0,
-            BaguaReductionOp::SUM,
-        );
+        if average {
+            intranode_communicator.reduce_inplace(
+                &mut communication_tensor.raw,
+                0,
+                BaguaReductionOp::AVG,
+            );
+        } else {
+            intranode_communicator.reduce_inplace(
+                &mut communication_tensor.raw,
+                0,
+                BaguaReductionOp::SUM,
+            );
+        }
     }
 
     pub fn hierarchical_worker_post(&self, communication_tensor: &mut BaguaCommunicationTensor) {
@@ -390,7 +416,7 @@ impl BaguaCommunicator {
                 }
                 BaguaHierarchicalCommunicator::Worker(communicator) => {
                     if hierarchical_pre {
-                        communicator.hierarchical_worker_pre(tensor);
+                        communicator.hierarchical_worker_pre(tensor, intranode_average);
                     }
                     if hierarchical_post {
                         communicator.hierarchical_worker_post(tensor);
@@ -427,6 +453,23 @@ impl Drop for NCCLGroupGuard {
 }
 
 impl BaguaCommunicatorInner {
+    pub fn abort(&self) {
+        let communicator_ptr = self.comm_ptr;
+
+        self.aborted.store(true, Ordering::Relaxed);
+
+        unsafe {
+            cpp::cpp!([communicator_ptr as "Al::NCCLCommunicator*"]
+            {
+                communicator_ptr->abort();
+            });
+        }
+    }
+
+    pub fn check_abort(&self) -> bool {
+        self.aborted.load(Ordering::Relaxed)
+    }
+
     pub fn broadcast(&self, tensor: &mut dyn RawBaguaTensor, root_rank: i32) {
         let communicator_ptr = self.comm_ptr;
         let tensor_ptr = tensor.data_ptr();

@@ -1,5 +1,6 @@
 use crate::comm_ops::centralized_full_precision_synchronous::CentralizedFullPrecisionSynchronous;
 use crate::comm_ops::centralized_low_precision_synchronous::CentralizedLowPrecisionSynchronous;
+use crate::comm_ops::decentralized_full_precision_asynchronous::DecentralizedFullPrecisionAsynchronous;
 use crate::comm_ops::decentralized_full_precision_synchronous::{
     DecentralizedFullPrecisionSynchronous, PeerSelectionMode,
 };
@@ -8,7 +9,6 @@ use crate::comm_ops::python_ffi_op::PythonFFIOp;
 use crate::comm_ops::CommOpTrait;
 use crate::communicators::{BaguaCommunicator, BaguaSingleCommunicator};
 use crate::resource_pool::{CudaMemory, CUDA_DEVICE_MEMORY_POOL};
-use crate::telemetry::TELEMETRY;
 use crate::torch_ffi::root::c10::{DeviceType, StorageImpl, TensorImpl};
 use crate::{kernels, BaguaCoreError};
 use itertools::Itertools;
@@ -34,6 +34,7 @@ pub enum BaguaReductionOp {
     BOR,
     BAND,
     BXOR,
+    AVG,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -139,6 +140,30 @@ pub trait RawBaguaTensor: Debug {
         }
     }
 
+    fn async_model_average(
+        &mut self,
+        reduced_tensor: &dyn RawBaguaTensor,
+        tensor: &dyn RawBaguaTensor,
+        nranks: f32,
+        stream_ptr: u64,
+    ) {
+        assert_eq!(self.dtype(), reduced_tensor.dtype());
+        assert_eq!(self.num_elements(), reduced_tensor.num_elements());
+        assert_eq!(self.dtype(), tensor.dtype());
+        assert_eq!(self.num_elements(), tensor.num_elements());
+        let tensor_ptr = self.data_ptr();
+        let total_num_elem = self.num_elements();
+        unsafe {
+            kernels::async_model_average_host(
+                tensor_ptr as _,
+                reduced_tensor.data_ptr() as _,
+                tensor.data_ptr() as _,
+                nranks as f32,
+                total_num_elem as i32,
+                stream_ptr as _,
+            );
+        }
+    }
     fn substract_inplace(&mut self, other: &dyn RawBaguaTensor, stream_ptr: u64) {
         assert_eq!(self.dtype(), other.dtype());
         assert_eq!(self.num_elements(), other.num_elements());
@@ -769,12 +794,6 @@ impl BaguaTensor {
         if cuda_event_ptr == 0 {
             tracing::info!("mark comm ready with an event 0, ignoring event");
         }
-        match TELEMETRY.as_ref() {
-            None => {}
-            Some(ref x) => {
-                x.lock().new_tensor_ready(self.inner.read().name.as_str());
-            }
-        }
         let mut guard = self.inner.write();
         guard.ready_for_comm = true;
         guard.ready_cuda_event_ptr = cuda_event_ptr;
@@ -1204,6 +1223,33 @@ impl BaguaBucket {
                 }
             },
         };
+        self.inner.lock().comm_ops.push(comm_op);
+    }
+
+    pub fn append_decentralized_asynchronous_op(
+        &mut self,
+        communicator_internode: Option<&BaguaSingleCommunicator>,
+        communicator_intranode: Option<&BaguaSingleCommunicator>,
+        peer_selection_mode: String,
+        torch_stream: u64,
+    ) {
+        let communicator =
+            BaguaCommunicator::new(communicator_internode, communicator_intranode, false)
+                .expect("cannot create communicator");
+
+        let comm_op: Arc<dyn CommOpTrait + Send + Sync> = Arc::new(
+            DecentralizedFullPrecisionAsynchronous {
+                communicator,
+                peer_selection_mode: match peer_selection_mode.as_str() {
+                    "all" => PeerSelectionMode::All,
+                    &_ => {
+                        unimplemented!("unsupported peer_selection_mode for decentralized asynchronous algorithm (should be `all`)")
+                    }
+                },
+                torch_stream,
+            },
+        );
+
         self.inner.lock().comm_ops.push(comm_op);
     }
 
