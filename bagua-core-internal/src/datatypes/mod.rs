@@ -6,7 +6,7 @@ use crate::comm_ops::decentralized_full_precision_synchronous::{
 };
 use crate::comm_ops::decentralized_low_precision_synchronous::DecentralizedLowPrecisionSynchronous;
 use crate::comm_ops::python_ffi_op::PythonFFIOp;
-use crate::comm_ops::CommOpTrait;
+use crate::comm_ops::CommOpTrait; 
 use crate::communicators::{BaguaCommunicator, BaguaSingleCommunicator};
 use crate::resource_pool::{CudaMemory, CUDA_DEVICE_MEMORY_POOL};
 use crate::torch_ffi::root::c10::{DeviceType, StorageImpl, TensorImpl};
@@ -164,6 +164,24 @@ pub trait RawBaguaTensor: Debug {
             );
         }
     }
+
+    fn fill(
+        &mut self,
+        value: f32,
+        stream_ptr: u64,
+    ) {
+        let tensor_ptr = self.data_ptr();
+        let total_num_elem = self.num_elements();
+        unsafe {
+            kernels::fill_host(
+                tensor_ptr as _,
+                value as f32,
+                total_num_elem as i32,
+                stream_ptr as _,
+            );
+        }
+    }
+
     fn substract_inplace(&mut self, other: &dyn RawBaguaTensor, stream_ptr: u64) {
         assert_eq!(self.dtype(), other.dtype());
         assert_eq!(self.num_elements(), other.num_elements());
@@ -1070,6 +1088,25 @@ impl<'b> Drop for BaguaCommunicationTensor<'b> {
 }
 
 #[derive(Debug, Clone)]
+pub struct BaguaCommOp {
+    pub name: String,
+    pub inner: Arc<dyn CommOpTrait + Send + Sync>
+}
+
+impl BaguaCommOp {
+    pub fn execute_post_step(
+        &self,
+        bucket: &BaguaBucket,
+    ) -> Result<(), BaguaCoreError> {
+   
+        let bucket = Arc::new((*bucket).clone());
+        self.inner.execute_post_step(bucket);
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct BaguaBucket {
     pub name: String,
     pub inner: Arc<Mutex<BaguaBucketInner>>,
@@ -1232,7 +1269,8 @@ impl BaguaBucket {
         communicator_intranode: Option<&BaguaSingleCommunicator>,
         peer_selection_mode: String,
         torch_stream: u64,
-    ) {
+        diff_tensor: BaguaTensor,
+    ) -> BaguaCommOp {
         let communicator =
             BaguaCommunicator::new(communicator_internode, communicator_intranode, false)
                 .expect("cannot create communicator");
@@ -1247,10 +1285,16 @@ impl BaguaBucket {
                     }
                 },
                 torch_stream,
+                diff_tensor,
             },
         );
 
-        self.inner.lock().comm_ops.push(comm_op);
+        self.inner.lock().comm_ops.push(comm_op.clone());
+
+        BaguaCommOp {
+            name: String::from("decentralized_async_op"),
+            inner: comm_op,
+        }
     }
 
     pub fn ready_for_comm(&self) -> bool {

@@ -16,4 +16,11 @@ pub trait CommOpTrait: Debug {
         bucket: Arc<BaguaBucket>,
         comm_channels: &BaguaCommOpChannels,
     );
+    
+    fn execute_post_step(
+        &self, 
+        bucket: Arc<BaguaBucket>,
+    ) {
+    }
 }
+

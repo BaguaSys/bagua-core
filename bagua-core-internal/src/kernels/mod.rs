@@ -134,4 +134,10 @@ extern "C" {
         N: i32,
         stream: *const c_void,
     );
+    pub fn fill_host(
+        tensor: *mut c_void,
+        value: f32,
+        N: i32,
+        stream: *const c_void,
+    );
 }

@@ -1,7 +1,7 @@
 use crate::comm_ops::decentralized_full_precision_synchronous::PeerSelectionMode;
 use crate::comm_ops::CommOpTrait;
 use crate::communicators::BaguaCommunicator;
-use crate::datatypes::{BaguaBucket, BaguaReductionOp, BaguaTensorRaw, RawBaguaTensor};
+use crate::datatypes::{BaguaBucket, BaguaReductionOp, BaguaTensorRaw, RawBaguaTensor, BaguaTensor};
 use crate::events::BaguaEventChannel;
 use crate::resource_pool::{CUDA_DEVICE_MEMORY_POOL, CUDA_EVENT_POOL};
 use crate::{BaguaCommOpChannels, BaguaCoreError};
@@ -13,6 +13,7 @@ pub struct DecentralizedFullPrecisionAsynchronous {
     pub communicator: BaguaCommunicator,
     pub peer_selection_mode: PeerSelectionMode,
     pub torch_stream: u64,
+    pub diff_tensor: BaguaTensor,
 }
 
 impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
@@ -72,10 +73,22 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                     pool_allocations: vec![Arc::new(reduced_buf)],
                 };
 
+                let src_ready_event = CUDA_EVENT_POOL.take().event;
+                let dst_ready_event = CUDA_EVENT_POOL.take().event;
+                
+                unsafe {
+                    cpp::cpp!([
+                        dst_ready_event as "cudaEvent_t",
+                        comm_stream as "cudaStream_t",
+                        torch_stream as "cudaStream_t"]
+                    {
+                        CUDACHECK(cudaEventRecord(dst_ready_event, comm_stream));
+                        CUDACHECK(cudaStreamWaitEvent(torch_stream, dst_ready_event , 0));
+                    });
+                }
+
                 // use default stream to copy weights
                 temp_tensor.clone_from(&t.raw, torch_stream as u64);
-
-                let src_ready_event = CUDA_EVENT_POOL.take().event;
 
                 unsafe {
                     cpp::cpp!([
@@ -104,40 +117,15 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                     }
                 };
 
-                let comm_ready_event = CUDA_EVENT_POOL.take().event;
-
-                unsafe {
-                    cpp::cpp!([
-                        comm_ready_event as "cudaEvent_t",
-                        comm_stream as "cudaStream_t"]
-                    {
-                        CUDACHECK(cudaEventRecord(comm_ready_event, comm_stream));
-                        CUDACHECK(cudaEventSynchronize(comm_ready_event));
-                    });
+                {
+                    let mut guard = self.diff_tensor.inner.write();
+                    guard.raw.async_model_average(
+                        &reduced_tensor,
+                        &temp_tensor,
+                        c.nranks as f32,
+                        comm_stream,
+                    );
                 }
-
-                if c.check_abort() {
-                    return;
-                }
-
-                // do we need to wait default stream?
-                unsafe {
-                    cpp::cpp!([
-                        src_ready_event as "cudaEvent_t",
-                        comm_stream as "cudaStream_t",
-                        torch_stream as "cudaStream_t"]
-                    {
-                        CUDACHECK(cudaEventRecord(src_ready_event, torch_stream));
-                        CUDACHECK(cudaStreamWaitEvent(comm_stream, src_ready_event , 0));
-                    });
-                }
-
-                t.raw.async_model_average(
-                    &reduced_tensor,
-                    &temp_tensor,
-                    c.nranks as f32,
-                    comm_stream,
-                );
 
                 unsafe {
                     cpp::cpp!([comm_stream as "cudaStream_t"]
@@ -153,4 +141,33 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
             },
         );
     }
+    
+    fn execute_post_step(
+        &self,
+        bucket: Arc<BaguaBucket>
+    ) {
+        let bucket_guard = bucket.inner.lock();
+        let stream_ptr = self.communicator.stream_ptr();
+
+        let mut communication_tensor = match &self.communicator {
+            BaguaCommunicator::SingleCommunicator(_) => {
+                bucket_guard.get_communication_tensor(stream_ptr, false, false)
+            }
+            BaguaCommunicator::HierarchicalCommunicator(x) => {
+                panic!("asynchronous op only accepts non-hierarchical communicator");
+            }
+        };
+
+        tracing::debug!("async model average update weight start");
+
+        let t = &mut communication_tensor;
+        
+        let mut guard = self.diff_tensor.inner.write();
+
+        t.raw.add_inplace(guard.raw.as_ref(), stream_ptr);
+        guard.raw.fill(0.0, stream_ptr);
+
+        tracing::debug!("async model average update weight end");
+    }
+
 }

@@ -2,7 +2,7 @@
 
 use bagua_core_internal::communicators::BaguaSingleCommunicator;
 use bagua_core_internal::datatypes::{
-    BaguaBucket, BaguaReductionOp, BaguaTensor, BaguaTensorDtype,
+    BaguaBucket, BaguaReductionOp, BaguaTensor, BaguaTensorDtype, BaguaCommOp
 };
 use bagua_core_internal::BaguaCommBackend;
 use num_traits::FromPrimitive;
@@ -194,6 +194,26 @@ impl BaguaSingleCommunicatorPy {
 }
 
 #[pyclass(dict)]
+pub struct BaguaCommOpPy {
+    inner: BaguaCommOp
+}
+
+#[pymethods]
+impl BaguaCommOpPy {
+
+    pub fn execute_post_step(&self,
+        bucket: PyRef<BaguaBucketPy>,
+    ) -> PyResult<()> {
+        let bucket_inner = &bucket.inner;
+
+        self.inner.execute_post_step(bucket_inner)
+            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
+    
+    }
+
+}
+
+#[pyclass(dict)]
 pub struct BaguaTensorPy {
     inner: BaguaTensor,
 }
@@ -347,6 +367,7 @@ impl BaguaCommBackendPy {
         py.allow_threads(|| self.inner.wait_pending_comm_ops())
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
+
 }
 
 #[pyclass(dict)]
@@ -456,14 +477,17 @@ impl BaguaBucketPy {
         communicator_intranode: Option<&BaguaSingleCommunicatorPy>,
         peer_selection_mode: String,
         torch_stream: u64,
-    ) -> PyResult<()> {
-        self.inner.append_decentralized_asynchronous_op(
-            communicator_internode.map(|x| &x.inner),
-            communicator_intranode.map(|x| &x.inner),
-            peer_selection_mode,
-            torch_stream,
-        );
-        Ok(())
+        diff_tensor: PyRef<BaguaTensorPy>,
+    ) -> BaguaCommOpPy {
+        BaguaCommOpPy {
+            inner: self.inner.append_decentralized_asynchronous_op(
+                communicator_internode.map(|x| &x.inner),
+                communicator_intranode.map(|x| &x.inner),
+                peer_selection_mode,
+                torch_stream,
+                (*diff_tensor).inner.clone(),
+            )
+        }
     }
 
     pub fn print_ops(&self) -> PyResult<()> {
@@ -507,6 +531,7 @@ fn bagua_core(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<BaguaTensorPy>()?;
     m.add_class::<BaguaBucketPy>()?;
     m.add_class::<BaguaSingleCommunicatorPy>()?;
+    m.add_class::<BaguaCommOpPy>()?;
 
     #[pyfn(m, "show_version")]
     fn show_version(_py: Python) {
