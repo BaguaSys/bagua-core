@@ -201,14 +201,12 @@ pub struct BaguaCommOpPy {
 #[pymethods]
 impl BaguaCommOpPy {
 
-    pub fn execute_post_step(&self,
-        bucket: PyRef<BaguaBucketPy>,
-    ) -> PyResult<()> {
+    pub fn execute_post_step(&self, bucket: PyRef<BaguaBucketPy>) -> PyResult<()>  {
+        tracing::debug!("BaguaCommOpPy: execute_post_step");
         let bucket_inner = &bucket.inner;
-
         self.inner.execute_post_step(bucket_inner)
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
-    
+
     }
 
 }
@@ -365,6 +363,20 @@ impl BaguaCommBackendPy {
 
     pub fn wait_pending_comm_ops(&self, py: Python) -> PyResult<usize> {
         py.allow_threads(|| self.inner.wait_pending_comm_ops())
+            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
+    }
+
+    pub fn execute_post_comm_step(
+        &self,
+        bucket: PyRef<BaguaBucketPy>,
+        op: PyRef<BaguaCommOpPy>,
+        py: Python
+    ) -> PyResult<()> {
+
+        let bucket_inner = &bucket.inner;
+        let op_inner = &op.inner;
+        tracing::debug!("bagua-core-py: schedule_comm_post_step");
+        self.inner.execute_post_comm_step(bucket_inner, op_inner)
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 

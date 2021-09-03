@@ -1099,6 +1099,7 @@ impl BaguaCommOp {
         bucket: &BaguaBucket,
     ) -> Result<(), BaguaCoreError> {
    
+        tracing::debug!("BaguaCommOp: execute_post_step");
         let bucket = Arc::new((*bucket).clone());
         self.inner.execute_post_step(bucket);
 
