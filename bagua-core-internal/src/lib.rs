@@ -335,5 +335,4 @@ impl BaguaCommBackend {
             }
         }
     }
-
 }

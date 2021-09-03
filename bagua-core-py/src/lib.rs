@@ -2,7 +2,7 @@
 
 use bagua_core_internal::communicators::BaguaSingleCommunicator;
 use bagua_core_internal::datatypes::{
-    BaguaBucket, BaguaReductionOp, BaguaTensor, BaguaTensorDtype, BaguaCommOp
+    BaguaBucket, BaguaCommOp, BaguaReductionOp, BaguaTensor, BaguaTensorDtype,
 };
 use bagua_core_internal::BaguaCommBackend;
 use num_traits::FromPrimitive;
@@ -195,19 +195,17 @@ impl BaguaSingleCommunicatorPy {
 
 #[pyclass(dict)]
 pub struct BaguaCommOpPy {
-    inner: BaguaCommOp
+    inner: BaguaCommOp,
 }
 
 #[pymethods]
 impl BaguaCommOpPy {
-
-    pub fn execute_post_step(&self, bucket: PyRef<BaguaBucketPy>) -> PyResult<()>  {
+    pub fn execute_post_step(&self, bucket: PyRef<BaguaBucketPy>) -> PyResult<()> {
         let bucket_inner = &bucket.inner;
-        self.inner.execute_post_step(bucket_inner)
+        self.inner
+            .execute_post_step(bucket_inner)
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
-
     }
-
 }
 
 #[pyclass(dict)]
@@ -364,7 +362,6 @@ impl BaguaCommBackendPy {
         py.allow_threads(|| self.inner.wait_pending_comm_ops())
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
-
 }
 
 #[pyclass(dict)]
@@ -485,7 +482,7 @@ impl BaguaBucketPy {
                 torch_stream,
                 (*weight).inner.clone(),
                 (*diff_tensor).inner.clone(),
-            )
+            ),
         }
     }
 

@@ -6,7 +6,7 @@ use crate::comm_ops::decentralized_full_precision_synchronous::{
 };
 use crate::comm_ops::decentralized_low_precision_synchronous::DecentralizedLowPrecisionSynchronous;
 use crate::comm_ops::python_ffi_op::PythonFFIOp;
-use crate::comm_ops::CommOpTrait; 
+use crate::comm_ops::CommOpTrait;
 use crate::communicators::{BaguaCommunicator, BaguaSingleCommunicator};
 use crate::resource_pool::{CudaMemory, CUDA_DEVICE_MEMORY_POOL};
 use crate::torch_ffi::root::c10::{DeviceType, StorageImpl, TensorImpl};
@@ -165,14 +165,10 @@ pub trait RawBaguaTensor: Debug {
         }
     }
 
-    fn async_model_update(
-        &mut self,
-        diff_tensor: &dyn RawBaguaTensor,
-        stream_ptr: u64,
-    ) {
+    fn async_model_update(&mut self, diff_tensor: &dyn RawBaguaTensor, stream_ptr: u64) {
         assert_eq!(self.dtype(), diff_tensor.dtype());
         assert_eq!(self.num_elements(), diff_tensor.num_elements());
-        
+
         let tensor_ptr = self.data_ptr();
         let total_num_elem = self.num_elements();
         unsafe {
@@ -1093,15 +1089,11 @@ impl<'b> Drop for BaguaCommunicationTensor<'b> {
 #[derive(Debug, Clone)]
 pub struct BaguaCommOp {
     pub name: String,
-    pub inner: Arc<dyn CommOpTrait + Send + Sync>
+    pub inner: Arc<dyn CommOpTrait + Send + Sync>,
 }
 
 impl BaguaCommOp {
-    pub fn execute_post_step(
-        &self,
-        bucket: &BaguaBucket,
-    ) -> Result<(), BaguaCoreError> {
-   
+    pub fn execute_post_step(&self, bucket: &BaguaBucket) -> Result<(), BaguaCoreError> {
         let bucket = Arc::new((*bucket).clone());
         self.inner.execute_post_step(bucket);
 

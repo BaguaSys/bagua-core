@@ -1,7 +1,9 @@
 use crate::comm_ops::decentralized_full_precision_synchronous::PeerSelectionMode;
 use crate::comm_ops::CommOpTrait;
 use crate::communicators::BaguaCommunicator;
-use crate::datatypes::{BaguaBucket, BaguaReductionOp, BaguaTensorRaw, RawBaguaTensor, BaguaTensor};
+use crate::datatypes::{
+    BaguaBucket, BaguaReductionOp, BaguaTensor, BaguaTensorRaw, RawBaguaTensor,
+};
 use crate::events::BaguaEventChannel;
 use crate::resource_pool::{CUDA_DEVICE_MEMORY_POOL, CUDA_EVENT_POOL};
 use crate::{BaguaCommOpChannels, BaguaCoreError};
@@ -46,8 +48,7 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
             false,
             false,
             &mut |c, t| {
-                let start_time = std::time::Instant::now();
-                tracing::debug!("#{} async model average start", c.rank);
+                tracing::debug!("async model average start");
 
                 let temp_buf = CUDA_DEVICE_MEMORY_POOL[t.raw.device_id()]
                     .try_pull(t.raw.num_elements_allocated() * t.raw.dtype().bytes())
@@ -77,7 +78,7 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
 
                 let src_ready_event = CUDA_EVENT_POOL.take().event;
                 let dst_ready_event = CUDA_EVENT_POOL.take().event;
-                
+
                 unsafe {
                     cpp::cpp!([
                         dst_ready_event as "cudaEvent_t",
@@ -103,10 +104,10 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                     });
                 }
 
-      /*          if c.check_abort() {
+                if c.check_abort() {
                     return;
                 }
-*/
+
                 match peer_mode {
                     PeerSelectionMode::All => {
                         c.allreduce(&temp_tensor, &mut reduced_tensor, BaguaReductionOp::SUM);
@@ -119,7 +120,7 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                     }
                 };
 
-                { 
+                {
                     let mut tensor_guard = self.diff_tensor.inner.write();
                     tensor_guard.raw.async_model_average(
                         &reduced_tensor,
@@ -129,29 +130,22 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                     );
                 }
 
-                tracing::debug!(
-                    "#{} async model average update cost: {:?}",
-                    c.rank, start_time.elapsed()
-                );
+                tracing::debug!("async model average update cost end");
             },
         );
     }
-    
-    fn execute_post_step(
-        &self,
-        bucket: Arc<BaguaBucket>
-    ) {
-        
-        tracing::debug!("async update weight start");
+
+    fn execute_post_step(&self, bucket: Arc<BaguaBucket>) {
+        tracing::debug!("async model average post step start");
         let torch_stream = self.torch_stream;
-        
+
         let mut tensor_guard = self.diff_tensor.inner.write();
         let mut guard = self.weight.inner.write();
-         
-        guard.raw.async_model_update(tensor_guard.raw.as_ref(), torch_stream);
-        
-        tracing::debug!("async update weight end");
-        
-    }
 
+        guard
+            .raw
+            .async_model_update(tensor_guard.raw.as_ref(), torch_stream);
+
+        tracing::debug!("async model average post step end");
+    }
 }
