@@ -165,17 +165,20 @@ pub trait RawBaguaTensor: Debug {
         }
     }
 
-    fn fill(
+    fn async_model_update(
         &mut self,
-        value: f32,
+        diff_tensor: &dyn RawBaguaTensor,
         stream_ptr: u64,
     ) {
+        assert_eq!(self.dtype(), diff_tensor.dtype());
+        assert_eq!(self.num_elements(), diff_tensor.num_elements());
+        
         let tensor_ptr = self.data_ptr();
         let total_num_elem = self.num_elements();
         unsafe {
-            kernels::fill_host(
+            kernels::async_model_update_host(
                 tensor_ptr as _,
-                value as f32,
+                diff_tensor.data_ptr() as _,
                 total_num_elem as i32,
                 stream_ptr as _,
             );
@@ -1099,7 +1102,6 @@ impl BaguaCommOp {
         bucket: &BaguaBucket,
     ) -> Result<(), BaguaCoreError> {
    
-        tracing::debug!("BaguaCommOp: execute_post_step");
         let bucket = Arc::new((*bucket).clone());
         self.inner.execute_post_step(bucket);
 
@@ -1270,6 +1272,7 @@ impl BaguaBucket {
         communicator_intranode: Option<&BaguaSingleCommunicator>,
         peer_selection_mode: String,
         torch_stream: u64,
+        weight: BaguaTensor,
         diff_tensor: BaguaTensor,
     ) -> BaguaCommOp {
         let communicator =
@@ -1286,6 +1289,7 @@ impl BaguaBucket {
                     }
                 },
                 torch_stream,
+                weight,
                 diff_tensor,
             },
         );

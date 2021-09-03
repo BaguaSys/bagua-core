@@ -13,6 +13,7 @@ pub struct DecentralizedFullPrecisionAsynchronous {
     pub communicator: BaguaCommunicator,
     pub peer_selection_mode: PeerSelectionMode,
     pub torch_stream: u64,
+    pub weight: BaguaTensor,
     pub diff_tensor: BaguaTensor,
 }
 
@@ -23,7 +24,6 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
         comm_op_channels: &BaguaCommOpChannels,
     ) {
         let bucket_guard = bucket.inner.lock();
-        let mut tensor_guard = self.diff_tensor.inner.write();
 
         let comm_stream = self.communicator.stream_ptr();
 
@@ -103,10 +103,10 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                     });
                 }
 
-                if c.check_abort() {
+      /*          if c.check_abort() {
                     return;
                 }
-
+*/
                 match peer_mode {
                     PeerSelectionMode::All => {
                         c.allreduce(&temp_tensor, &mut reduced_tensor, BaguaReductionOp::SUM);
@@ -119,20 +119,15 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                     }
                 };
 
-                
-                tensor_guard.raw.async_model_average(
-                    &reduced_tensor,
-                    &temp_tensor,
-                    c.nranks as f32,
-                    comm_stream,
-                );
-
-                /*unsafe {
-                    cpp::cpp!([comm_stream as "cudaStream_t"]
-                    {
-                        CUDACHECK(cudaStreamSynchronize(comm_stream));
-                    });
-                }*/
+                { 
+                    let mut tensor_guard = self.diff_tensor.inner.write();
+                    tensor_guard.raw.async_model_average(
+                        &reduced_tensor,
+                        &temp_tensor,
+                        c.nranks as f32,
+                        comm_stream,
+                    );
+                }
 
                 tracing::debug!(
                     "#{} async model average update cost: {:?}",
@@ -147,63 +142,16 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
         bucket: Arc<BaguaBucket>
     ) {
         
-        let bucket_guard = bucket.inner.lock();
-        let mut tensor_guard = self.diff_tensor.inner.write();
-        
-        let comm_stream = self.communicator.stream_ptr();
-        
-        let mut communication_tensor = match &self.communicator {
-            BaguaCommunicator::SingleCommunicator(_) => {
-                bucket_guard.get_communication_tensor(comm_stream, false, false)
-            }
-            BaguaCommunicator::HierarchicalCommunicator(x) => {
-                panic!("asynchronous op only accepts non-hierarchical communicator");
-            }
-        };
-
+        tracing::debug!("async update weight start");
         let torch_stream = self.torch_stream;
-
-        self.communicator.execute_communication(
-            &mut communication_tensor,
-            false,
-            false,
-            false,
-            &mut |c, t| {
-
-                tracing::debug!("#{} async model average update weight start", c.rank);
-                
-                let src_ready_event = CUDA_EVENT_POOL.take().event;
-                let dst_ready_event = CUDA_EVENT_POOL.take().event;
-                
-                unsafe {
-                    cpp::cpp!([
-                        src_ready_event as "cudaEvent_t",
-                        comm_stream as "cudaStream_t",
-                        torch_stream as "cudaStream_t"]
-                    {
-                        CUDACHECK(cudaEventRecord(src_ready_event, torch_stream));
-                        CUDACHECK(cudaStreamWaitEvent(comm_stream, src_ready_event , 0));
-                    });
-                }
-
-                t.raw.add_inplace(tensor_guard.raw.as_ref(), comm_stream);
-                tensor_guard.raw.fill(0.0, comm_stream);
-                
-                unsafe {
-                    cpp::cpp!([
-                        dst_ready_event as "cudaEvent_t",
-                        comm_stream as "cudaStream_t",
-                        torch_stream as "cudaStream_t"]
-                    {
-                        CUDACHECK(cudaEventRecord(dst_ready_event, comm_stream));
-                        CUDACHECK(cudaStreamWaitEvent(torch_stream, dst_ready_event , 0));
-                    });
-                }
-
-                tracing::debug!("#{} async model average update weight end", c.rank);
-            },
-        );
-    
+        
+        let mut tensor_guard = self.diff_tensor.inner.write();
+        let mut guard = self.weight.inner.write();
+         
+        guard.raw.async_model_update(tensor_guard.raw.as_ref(), torch_stream);
+        
+        tracing::debug!("async update weight end");
+        
     }
 
 }

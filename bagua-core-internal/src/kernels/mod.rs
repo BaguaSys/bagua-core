@@ -134,9 +134,9 @@ extern "C" {
         N: i32,
         stream: *const c_void,
     );
-    pub fn fill_host(
+    pub fn async_model_update_host(
         tensor: *mut c_void,
-        value: f32,
+        diff_tensor: *mut c_void,
         N: i32,
         stream: *const c_void,
     );

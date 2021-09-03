@@ -266,9 +266,10 @@ __global__ void async_model_average(float *tensor, const float *reduced_tensor_c
     }
 }
 
-__global__ void fill(float *tensor, const float value, const int N) {
+__global__ void async_model_update(float *tensor, float *diff_tensor, const int N) {
     for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N; i += blockDim.x * gridDim.x) {
-	tensor[i] = value;
+	tensor[i] += diff_tensor[i];
+	diff_tensor[i] = 0.0;
     }
 }
 
@@ -634,8 +635,8 @@ void async_model_average_host(float *tensor, const float *reduced_tensor_copy,
     CUDACHECK(cudaGetLastError());
 }
 
-void fill_host(float *tensor, float value, const int N, cudaStream_t stream) {
-    fill<<<DIVUP(N, 1024), 1024, 0, stream>>>(tensor, value, N);
+void async_model_update_host(float *tensor, float *diff_tensor, const int N, cudaStream_t stream) {
+    async_model_update<<<DIVUP(N, 1024), 1024, 0, stream>>>(tensor, diff_tensor, N);
     CUDACHECK(cudaGetLastError());
 }
 

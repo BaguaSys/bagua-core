@@ -15,7 +15,7 @@ mod torch_ffi;
 use crate::comm_ops::CommOpTrait;
 use bagua_opentelemetry;
 use cpp::cpp;
-use datatypes::{BaguaBucket, BaguaTensor, BaguaCommOp};
+use datatypes::{BaguaBucket, BaguaTensor};
 use events::BaguaEventChannel;
 use flume::RecvTimeoutError;
 use hashbrown::{HashMap, HashSet};
@@ -336,16 +336,4 @@ impl BaguaCommBackend {
         }
     }
 
-    pub fn execute_post_comm_step(
-        &self,
-        bucket: &BaguaBucket,
-        op: &BaguaCommOp
-    ) -> Result<(), BaguaCoreError> {
-        tracing::debug!("bagua-core-internal: schedule_comm_post_step");
-        
-        let bucket = Arc::new((*bucket).clone());
-        op.inner.execute_post_step(bucket); 
-
-        Ok(())
-    }
 }

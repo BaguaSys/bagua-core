@@ -202,7 +202,6 @@ pub struct BaguaCommOpPy {
 impl BaguaCommOpPy {
 
     pub fn execute_post_step(&self, bucket: PyRef<BaguaBucketPy>) -> PyResult<()>  {
-        tracing::debug!("BaguaCommOpPy: execute_post_step");
         let bucket_inner = &bucket.inner;
         self.inner.execute_post_step(bucket_inner)
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
@@ -366,20 +365,6 @@ impl BaguaCommBackendPy {
             .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
     }
 
-    pub fn execute_post_comm_step(
-        &self,
-        bucket: PyRef<BaguaBucketPy>,
-        op: PyRef<BaguaCommOpPy>,
-        py: Python
-    ) -> PyResult<()> {
-
-        let bucket_inner = &bucket.inner;
-        let op_inner = &op.inner;
-        tracing::debug!("bagua-core-py: schedule_comm_post_step");
-        self.inner.execute_post_comm_step(bucket_inner, op_inner)
-            .map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))
-    }
-
 }
 
 #[pyclass(dict)]
@@ -489,6 +474,7 @@ impl BaguaBucketPy {
         communicator_intranode: Option<&BaguaSingleCommunicatorPy>,
         peer_selection_mode: String,
         torch_stream: u64,
+        weight: PyRef<BaguaTensorPy>,
         diff_tensor: PyRef<BaguaTensorPy>,
     ) -> BaguaCommOpPy {
         BaguaCommOpPy {
@@ -497,6 +483,7 @@ impl BaguaBucketPy {
                 communicator_intranode.map(|x| &x.inner),
                 peer_selection_mode,
                 torch_stream,
+                (*weight).inner.clone(),
                 (*diff_tensor).inner.clone(),
             )
         }
