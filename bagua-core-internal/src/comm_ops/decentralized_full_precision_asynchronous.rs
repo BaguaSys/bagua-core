@@ -130,7 +130,7 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                     );
                 }
 
-                tracing::debug!("async model average update cost end");
+                tracing::debug!("async model average update end");
             },
         );
     }

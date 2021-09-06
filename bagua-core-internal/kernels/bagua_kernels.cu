@@ -259,9 +259,9 @@ __global__ void async_model_average(float *tensor, const float *reduced_tensor_c
     for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N; i += blockDim.x * gridDim.x) {
 	
 	tensor[i] += reduced_tensor_copy[i] / nranks - tensor_copy[i];
-        if (tensor[i] != tensor[i]) {
+        /*if (tensor[i] != tensor[i]) {
             printf("nan encountered!");
-        }
+        }*/
 //        atomicAdd(&tensor[i], reduced_tensor_copy[i] / nranks - tensor_copy[i]);
     }
 }
