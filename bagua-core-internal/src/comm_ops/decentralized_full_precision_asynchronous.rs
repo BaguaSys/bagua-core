@@ -78,18 +78,6 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                 };
 
                 let src_ready_event = CUDA_EVENT_POOL.take().event;
-                let dst_ready_event = CUDA_EVENT_POOL.take().event;
-
-                unsafe {
-                    cpp::cpp!([
-                        dst_ready_event as "cudaEvent_t",
-                        comm_stream as "cudaStream_t",
-                        torch_stream as "cudaStream_t"]
-                    {
-                        CUDACHECK(cudaEventRecord(dst_ready_event, comm_stream));
-                        CUDACHECK(cudaStreamWaitEvent(torch_stream, dst_ready_event , 0));
-                    });
-                }
 
                 // use default stream to copy weights
                 temp_tensor.clone_from(&t.raw, torch_stream as u64);
