@@ -16,6 +16,7 @@ from tqdm import tqdm
 _nccl_records = []
 library_records = {}
 
+
 class DownloadProgressBar(tqdm):
     def update_to(self, b=1, bsize=1, tsize=None):
         if tsize is not None:
@@ -26,7 +27,8 @@ class DownloadProgressBar(tqdm):
 def download_url(url, output_path):
     with DownloadProgressBar(unit='B', unit_scale=True,
                              miniters=1, desc=url.split('/')[-1]) as t:
-        urllib.request.urlretrieve(url, filename=output_path, reporthook=t.update_to)
+        urllib.request.urlretrieve(
+            url, filename=output_path, reporthook=t.update_to)
 
 
 def _make_nccl_url(public_version, filename):
@@ -51,25 +53,32 @@ def _make_nccl_record(cuda_version, full_version, public_version, filename_linux
 
 
 _nccl_records.append(
-    _make_nccl_record("11.4", "2.10.3", "2.10", "nccl_2.10.3-1+cuda11.4_x86_64.txz")
+    _make_nccl_record("11.4", "2.10.3", "2.10",
+                      "nccl_2.10.3-1+cuda11.4_x86_64.txz")
 )
 _nccl_records.append(
-    _make_nccl_record("11.3", "2.10.3", "2.10", "nccl_2.10.3-1+cuda11.0_x86_64.txz")
+    _make_nccl_record("11.3", "2.10.3", "2.10",
+                      "nccl_2.10.3-1+cuda11.0_x86_64.txz")
 )
 _nccl_records.append(
-    _make_nccl_record("11.2", "2.10.3", "2.10", "nccl_2.10.3-1+cuda11.0_x86_64.txz")
+    _make_nccl_record("11.2", "2.10.3", "2.10",
+                      "nccl_2.10.3-1+cuda11.0_x86_64.txz")
 )
 _nccl_records.append(
-    _make_nccl_record("11.1", "2.10.3", "2.10", "nccl_2.10.3-1+cuda11.0_x86_64.txz")
+    _make_nccl_record("11.1", "2.10.3", "2.10",
+                      "nccl_2.10.3-1+cuda11.0_x86_64.txz")
 )
 _nccl_records.append(
-    _make_nccl_record("11.0", "2.10.3", "2.10", "nccl_2.10.3-1+cuda11.0_x86_64.txz")
+    _make_nccl_record("11.0", "2.10.3", "2.10",
+                      "nccl_2.10.3-1+cuda11.0_x86_64.txz")
 )
 _nccl_records.append(
-    _make_nccl_record("10.2", "2.10.3", "2.10", "nccl_2.10.3-1+cuda10.2_x86_64.txz")
+    _make_nccl_record("10.2", "2.10.3", "2.10",
+                      "nccl_2.10.3-1+cuda10.2_x86_64.txz")
 )
 _nccl_records.append(
-    _make_nccl_record("10.1", "2.10.3", "2.10", "nccl_2.10.3-1+cuda10.2_x86_64.txz")
+    _make_nccl_record("10.1", "2.10.3", "2.10",
+                      "nccl_2.10.3-1+cuda10.2_x86_64.txz")
 )
 library_records["nccl"] = _nccl_records
 
@@ -205,7 +214,8 @@ if __name__ == "__main__":
         description="Core communication lib for Bagua.",
         package_dir={"": "python/"},
         packages=find_packages("python/"),
-        package_data={"": [".data/lib/libnccl.so"]},
+        package_data={"": [".data/lib/libnccl.so",
+                           ".data/bagua-net/libbagua_net.so", ".data/bagua-net/libnccl-net.so"]},
         rust_extensions=[
             RustExtension(
                 "bagua_core.bagua_core",
