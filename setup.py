@@ -15,8 +15,6 @@ from tqdm import tqdm
 
 _nccl_records = []
 library_records = {}
-ENABLE_BAGUA_NET = os.environ.get("ENABLE_BAGUA_NET", "0")
-
 
 class DownloadProgressBar(tqdm):
     def update_to(self, b=1, bsize=1, tsize=None):
@@ -139,10 +137,13 @@ The current platform ({}) is not supported.""".format(
             subdir = os.listdir(outdir)
             assert len(subdir) == 1
             shutil.move(os.path.join(outdir, subdir[0]), destination)
-            if ENABLE_BAGUA_NET == "1":
-                install_baguanet(
-                    "https://github.com/BaguaSys/bagua-net/releases/download/v0.1.0/bagua-net_refs.tags.v0.1.0_x86_64.tar.gz",
-                    os.path.join(destination, 'lib'))
+
+            # Install bagua-net
+            dst_dir = os.path.join(destination, 'bagua-net')
+            os.mkdir(dst_dir)
+            install_baguanet(
+                "https://github.com/BaguaSys/bagua-net/releases/download/v0.1.0/bagua-net_refs.tags.v0.1.0_x86_64.tar.gz",
+                dst_dir)
         else:
             assert False
         print("Cleaning up...")
