@@ -121,6 +121,22 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                     }
                 };
 
+                let comm_ready_event = CUDA_EVENT_POOL.take().event;
+
+                unsafe {
+                    cpp::cpp!([
+                        comm_ready_event as "cudaEvent_t",
+                        comm_stream as "cudaStream_t"]
+                    {
+                        CUDACHECK(cudaEventRecord(comm_ready_event, comm_stream));
+                        CUDACHECK(cudaEventSynchronize(comm_ready_event));
+                    });
+                }
+
+                if c.check_abort() {
+                    return;
+                }
+
                 {
                     let mut tensor_guard = self.diff_tensor.inner.write();
                     tensor_guard.raw.async_model_average(
