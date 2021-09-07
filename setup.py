@@ -215,7 +215,8 @@ if __name__ == "__main__":
         package_dir={"": "python/"},
         packages=find_packages("python/"),
         package_data={"": [".data/lib/libnccl.so",
-                           ".data/bagua-net/libbagua_net.so", ".data/bagua-net/libnccl-net.so"]},
+                           ".data/bagua-net/libbagua_net.so",
+                           ".data/bagua-net/libnccl-net.so"]},
         rust_extensions=[
             RustExtension(
                 "bagua_core.bagua_core",
