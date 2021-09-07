@@ -48,6 +48,7 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
             false,
             false,
             &mut |c, t| {
+                let start_time = std::time::Instant::now();
                 tracing::debug!("async model average start");
 
                 let temp_buf = CUDA_DEVICE_MEMORY_POOL[t.raw.device_id()]
@@ -128,9 +129,23 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                         c.nranks as f32,
                         comm_stream,
                     );
-                }
 
-                tracing::debug!("async model average update end");
+                    let ready_event = CUDA_EVENT_POOL.take().event;
+
+                    unsafe {
+                        cpp::cpp!([
+                            ready_event as "cudaEvent_t",
+                            comm_stream as "cudaStream_t"]
+                        {
+                            CUDACHECK(cudaEventRecord(ready_event, comm_stream));
+                            CUDACHECK(cudaEventSynchronize(ready_event));
+                        });
+                    }
+                }
+                tracing::debug!(
+                    "async model average update cost: {:?}",
+                    start_time.elapsed()
+                );
             },
         );
     }
@@ -138,14 +153,26 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
     fn execute_post_step(&self, bucket: Arc<BaguaBucket>) {
         tracing::debug!("async model average post step start");
         let torch_stream = self.torch_stream;
+        {
+            let mut tensor_guard = self.diff_tensor.inner.write();
+            let mut guard = self.weight.inner.write();
 
-        let mut tensor_guard = self.diff_tensor.inner.write();
-        let mut guard = self.weight.inner.write();
+            guard
+                .raw
+                .async_model_update(tensor_guard.raw.as_ref(), torch_stream);
 
-        guard
-            .raw
-            .async_model_update(tensor_guard.raw.as_ref(), torch_stream);
+            let ready_event = CUDA_EVENT_POOL.take().event;
 
+            unsafe {
+                cpp::cpp!([
+                    ready_event as "cudaEvent_t",
+                    torch_stream as "cudaStream_t"]
+                {
+                    CUDACHECK(cudaEventRecord(ready_event, torch_stream));
+                    CUDACHECK(cudaEventSynchronize(ready_event));
+                });
+            }
+        }
         tracing::debug!("async model average post step end");
     }
 }
