@@ -9,5 +9,4 @@ def _preload_libraries():
 
     # Load bagua-net
     if os.environ.get("ENABLE_BAGUA_NET", "0") == "1":
-        ctypes.CDLL(os.path.join(cwd, ".data", "bagua-net", "libbagua_net.so"))
-        ctypes.CDLL(os.path.join(cwd, ".data", "bagua-net", "libnccl-net.so"))
+        os.environ['LD_LIBRARY_PATH'] += ':{}'.format(os.path.join(cwd, ".data", "bagua-net"))
