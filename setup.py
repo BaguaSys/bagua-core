@@ -151,7 +151,7 @@ The current platform ({}) is not supported.""".format(
             dst_dir = os.path.join(destination, 'bagua-net')
             os.mkdir(dst_dir)
             install_baguanet(
-                "https://github.com/BaguaSys/bagua-net/releases/download/v0.1.2/release.tar.gz",
+                "https://github.com/BaguaSys/bagua-net/releases/download/v0.1.1/bagua-net_refs.tags.v0.1.1_x86_64.tar.gz",
                 dst_dir)
         else:
             assert False
