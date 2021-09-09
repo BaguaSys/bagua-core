@@ -97,6 +97,11 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                     return;
                 }
 
+                {
+                    let tensor_guard = self.diff_tensor.inner.read();
+                    temp_tensor.add_inplace(tensor_guard.raw.as_ref(), comm_stream as u64);
+                }
+
                 match peer_mode {
                     PeerSelectionMode::All => {
                         c.allreduce(&temp_tensor, &mut reduced_tensor, BaguaReductionOp::SUM);
