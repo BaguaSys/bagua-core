@@ -7,6 +7,7 @@ use crate::datatypes::{
 use crate::events::BaguaEventChannel;
 use crate::resource_pool::{CUDA_DEVICE_MEMORY_POOL, CUDA_EVENT_POOL};
 use crate::{BaguaCommOpChannels, BaguaCoreError};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -17,6 +18,7 @@ pub struct DecentralizedFullPrecisionAsynchronous {
     pub torch_stream: u64,
     pub weight: BaguaTensor,
     pub diff_tensor: BaguaTensor,
+    pub has_updated: Arc<AtomicBool>,
 }
 
 impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
@@ -25,6 +27,12 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
         bucket: Arc<BaguaBucket>,
         comm_op_channels: &BaguaCommOpChannels,
     ) {
+        // Wait until diff tensor is applied
+        let has_updated = self.has_updated.load(Ordering::Acquire);
+        if has_updated {
+            return;
+        }
+
         let bucket_guard = bucket.inner.lock();
 
         let comm_stream = self.communicator.stream_ptr();
@@ -49,7 +57,7 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
             false,
             &mut |c, t| {
                 let start_time = std::time::Instant::now();
-                tracing::debug!("async model average start");
+                tracing::debug!("#{} async model average start", c.rank);
 
                 let temp_buf = CUDA_DEVICE_MEMORY_POOL[t.raw.device_id()]
                     .try_pull(t.raw.num_elements_allocated() * t.raw.dtype().bytes())
@@ -93,15 +101,6 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                     });
                 }
 
-                if c.check_abort() {
-                    return;
-                }
-
-                {
-                    let tensor_guard = self.diff_tensor.inner.read();
-                    temp_tensor.add_inplace(tensor_guard.raw.as_ref(), comm_stream as u64);
-                }
-
                 match peer_mode {
                     PeerSelectionMode::All => {
                         c.allreduce(&temp_tensor, &mut reduced_tensor, BaguaReductionOp::SUM);
@@ -113,22 +112,6 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                         unimplemented!()
                     }
                 };
-
-                let comm_ready_event = CUDA_EVENT_POOL.take().event;
-
-                unsafe {
-                    cpp::cpp!([
-                        comm_ready_event as "cudaEvent_t",
-                        comm_stream as "cudaStream_t"]
-                    {
-                        CUDACHECK(cudaEventRecord(comm_ready_event, comm_stream));
-                        CUDACHECK(cudaEventSynchronize(comm_ready_event));
-                    });
-                }
-
-                if c.check_abort() {
-                    return;
-                }
 
                 {
                     let mut tensor_guard = self.diff_tensor.inner.write();
@@ -151,8 +134,12 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                         });
                     }
                 }
+
+                self.has_updated.store(true, Ordering::Release);
+
                 tracing::debug!(
-                    "async model average update cost: {:?}",
+                    "#{} async model average update cost: {:?}",
+                    c.rank,
                     start_time.elapsed()
                 );
             },
@@ -160,10 +147,17 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
     }
 
     fn execute_post_step(&self, bucket: Arc<BaguaBucket>) {
+        let has_updated = self.has_updated.load(Ordering::Acquire);
+        if !has_updated {
+            return;
+        }
+
         tracing::debug!("async model average post step start");
         let torch_stream = self.torch_stream;
         {
             let mut tensor_guard = self.diff_tensor.inner.write();
+
+            // We must patch diff tensor to model weights here
             let mut guard = self.weight.inner.write();
 
             guard
@@ -182,6 +176,8 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                 });
             }
         }
+
+        self.has_updated.store(false, Ordering::Release);
         tracing::debug!("async model average post step end");
     }
 }

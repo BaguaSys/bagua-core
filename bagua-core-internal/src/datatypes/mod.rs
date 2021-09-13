@@ -19,6 +19,7 @@ use pyo3::types::IntoPyDict;
 use sized_object_pool::DynamicPoolItem;
 use std::ffi::c_void;
 use std::fmt::Debug;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 // must be consistent with Aluminum ReductionOperator: https://github.com/BaguaSys/Aluminum/blob/master/include/aluminum/base.hpp
@@ -1283,6 +1284,7 @@ impl BaguaBucket {
                 torch_stream,
                 weight,
                 diff_tensor,
+                has_updated: Arc::new(AtomicBool::new(false)),
             },
         );
 
