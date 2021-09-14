@@ -106,6 +106,17 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                 };
 
                 {
+                    let ready_event = CUDA_EVENT_POOL.take().event;
+                    unsafe {
+                        cpp::cpp!([
+                            ready_event as "cudaEvent_t",
+                            comm_stream as "cudaStream_t"]
+                        {
+                            CUDACHECK(cudaEventRecord(ready_event, comm_stream));
+                            CUDACHECK(cudaEventSynchronize(ready_event));
+                        });
+                    }
+                    
                     self.lock_weight();
                     t.raw.async_model_average(
                         &reduced_tensor,
@@ -113,8 +124,6 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                         c.nranks as f32,
                         comm_stream,
                     );
-
-                    let ready_event = CUDA_EVENT_POOL.take().event;
 
                     unsafe {
                         cpp::cpp!([
