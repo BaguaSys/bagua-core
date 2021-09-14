@@ -116,7 +116,7 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                             CUDACHECK(cudaEventSynchronize(ready_event));
                         });
                     }
-                    
+
                     self.lock_weight();
                     t.raw.async_model_average(
                         &reduced_tensor,

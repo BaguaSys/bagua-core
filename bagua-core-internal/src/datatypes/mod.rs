@@ -166,22 +166,6 @@ pub trait RawBaguaTensor: Debug {
         }
     }
 
-    fn async_model_update(&mut self, diff_tensor: &dyn RawBaguaTensor, stream_ptr: u64) {
-        assert_eq!(self.dtype(), diff_tensor.dtype());
-        assert_eq!(self.num_elements(), diff_tensor.num_elements());
-
-        let tensor_ptr = self.data_ptr();
-        let total_num_elem = self.num_elements();
-        unsafe {
-            kernels::async_model_update_host(
-                tensor_ptr as _,
-                diff_tensor.data_ptr() as _,
-                total_num_elem as i32,
-                stream_ptr as _,
-            );
-        }
-    }
-
     fn substract_inplace(&mut self, other: &dyn RawBaguaTensor, stream_ptr: u64) {
         assert_eq!(self.dtype(), other.dtype());
         assert_eq!(self.num_elements(), other.num_elements());

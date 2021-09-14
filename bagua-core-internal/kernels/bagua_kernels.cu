@@ -266,13 +266,6 @@ __global__ void async_model_average(float *tensor, const float *reduced_tensor_c
     }
 }
 
-__global__ void async_model_update(float *tensor, float *diff_tensor, const int N) {
-    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N; i += blockDim.x * gridDim.x) {
-	tensor[i] += diff_tensor[i];
-	diff_tensor[i] = 0.0;
-    }
-}
-
 template<typename T>
 size_t array_min_max_size(
         const T *input_array,
@@ -632,11 +625,6 @@ void average_inplace_f16_host(__half *x, __half *y, int N, cudaStream_t stream) 
 void async_model_average_host(float *tensor, const float *reduced_tensor_copy, 
 		const float *tensor_copy, const float nranks, const int N, cudaStream_t stream) {
     async_model_average<<<DIVUP(N, 1024), 1024, 0, stream>>>(tensor, reduced_tensor_copy, tensor_copy, nranks, N);
-    CUDACHECK(cudaGetLastError());
-}
-
-void async_model_update_host(float *tensor, float *diff_tensor, const int N, cudaStream_t stream) {
-    async_model_update<<<DIVUP(N, 1024), 1024, 0, stream>>>(tensor, diff_tensor, N);
     CUDACHECK(cudaGetLastError());
 }
 
