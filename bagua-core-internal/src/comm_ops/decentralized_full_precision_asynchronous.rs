@@ -7,7 +7,7 @@ use crate::datatypes::{
 use crate::events::BaguaEventChannel;
 use crate::resource_pool::{CUDA_DEVICE_MEMORY_POOL, CUDA_EVENT_POOL};
 use crate::{BaguaCommOpChannels, BaguaCoreError};
-use std::sync::atomic::{AtomicBool, Ordering};
+use parking_lot::{lock_api::RawMutex as _, Mutex, RawMutex};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -16,9 +16,7 @@ pub struct DecentralizedFullPrecisionAsynchronous {
     pub communicator: BaguaCommunicator,
     pub peer_selection_mode: PeerSelectionMode,
     pub torch_stream: u64,
-    pub weight: BaguaTensor,
-    pub diff_tensor: BaguaTensor,
-    pub has_updated: Arc<AtomicBool>,
+    pub weight_mutex: Arc<Mutex<bool>>,
 }
 
 impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
@@ -27,12 +25,6 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
         bucket: Arc<BaguaBucket>,
         comm_op_channels: &BaguaCommOpChannels,
     ) {
-        // Wait until diff tensor is applied
-        let has_updated = self.has_updated.load(Ordering::Acquire);
-        if has_updated {
-            return;
-        }
-
         let bucket_guard = bucket.inner.lock();
 
         let comm_stream = self.communicator.stream_ptr();
@@ -114,8 +106,8 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                 };
 
                 {
-                    let mut tensor_guard = self.diff_tensor.inner.write();
-                    tensor_guard.raw.async_model_average(
+                    self.lock_weight();
+                    t.raw.async_model_average(
                         &reduced_tensor,
                         &temp_tensor,
                         c.nranks as f32,
@@ -133,9 +125,8 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
                             CUDACHECK(cudaEventSynchronize(ready_event));
                         });
                     }
+                    self.unlock_weight();
                 }
-
-                self.has_updated.store(true, Ordering::Release);
 
                 tracing::debug!(
                     "#{} async model average update cost: {:?}",
@@ -145,39 +136,18 @@ impl CommOpTrait for DecentralizedFullPrecisionAsynchronous {
             },
         );
     }
+}
 
-    fn execute_post_step(&self, bucket: Arc<BaguaBucket>) {
-        let has_updated = self.has_updated.load(Ordering::Acquire);
-        if !has_updated {
-            return;
-        }
+impl DecentralizedFullPrecisionAsynchronous {
+    pub fn lock_weight(&self) {
+        let raw_mutex = unsafe { self.weight_mutex.raw() };
+        raw_mutex.lock();
+    }
 
-        tracing::debug!("async model average post step start");
-        let torch_stream = self.torch_stream;
-        {
-            let mut tensor_guard = self.diff_tensor.inner.write();
-
-            // We must patch diff tensor to model weights here
-            let mut guard = self.weight.inner.write();
-
-            guard
-                .raw
-                .async_model_update(tensor_guard.raw.as_ref(), torch_stream);
-
-            let ready_event = CUDA_EVENT_POOL.take().event;
-
-            unsafe {
-                cpp::cpp!([
-                    ready_event as "cudaEvent_t",
-                    torch_stream as "cudaStream_t"]
-                {
-                    CUDACHECK(cudaEventRecord(ready_event, torch_stream));
-                    CUDACHECK(cudaEventSynchronize(ready_event));
-                });
-            }
-        }
-
-        self.has_updated.store(false, Ordering::Release);
-        tracing::debug!("async model average post step end");
+    pub fn unlock_weight(&self) {
+        unsafe {
+            let raw_mutex = self.weight_mutex.raw();
+            raw_mutex.unlock();
+        };
     }
 }

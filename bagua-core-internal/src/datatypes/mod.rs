@@ -1088,21 +1088,6 @@ impl<'b> Drop for BaguaCommunicationTensor<'b> {
 }
 
 #[derive(Debug, Clone)]
-pub struct BaguaCommOp {
-    pub name: String,
-    pub inner: Arc<dyn CommOpTrait + Send + Sync>,
-}
-
-impl BaguaCommOp {
-    pub fn execute_post_step(&self, bucket: &BaguaBucket) -> Result<(), BaguaCoreError> {
-        let bucket = Arc::new((*bucket).clone());
-        self.inner.execute_post_step(bucket);
-
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct BaguaBucket {
     pub name: String,
     pub inner: Arc<Mutex<BaguaBucketInner>>,
@@ -1265,35 +1250,29 @@ impl BaguaBucket {
         communicator_intranode: Option<&BaguaSingleCommunicator>,
         peer_selection_mode: String,
         torch_stream: u64,
-        weight: BaguaTensor,
-        diff_tensor: BaguaTensor,
-    ) -> BaguaCommOp {
+    ) -> Arc<DecentralizedFullPrecisionAsynchronous> {
         let communicator =
             BaguaCommunicator::new(communicator_internode, communicator_intranode, false)
                 .expect("cannot create communicator");
 
-        let comm_op: Arc<dyn CommOpTrait + Send + Sync> = Arc::new(
-            DecentralizedFullPrecisionAsynchronous {
-                communicator,
-                peer_selection_mode: match peer_selection_mode.as_str() {
-                    "all" => PeerSelectionMode::All,
-                    &_ => {
-                        unimplemented!("unsupported peer_selection_mode for decentralized asynchronous algorithm (should be `all`)")
-                    }
-                },
-                torch_stream,
-                weight,
-                diff_tensor,
-                has_updated: Arc::new(AtomicBool::new(false)),
+        let comm_op = Arc::new(DecentralizedFullPrecisionAsynchronous {
+            communicator,
+            peer_selection_mode: match peer_selection_mode.as_str() {
+                "all" => PeerSelectionMode::All,
+                &_ => {
+                    unimplemented!("unsupported peer_selection_mode for decentralized asynchronous algorithm (should be `all`)")
+                }
             },
-        );
+            torch_stream,
+            weight_mutex: Arc::new(Mutex::new(true)),
+        });
 
-        self.inner.lock().comm_ops.push(comm_op.clone());
+        self.inner
+            .lock()
+            .comm_ops
+            .push(comm_op.clone() as Arc<dyn CommOpTrait + Send + Sync>);
 
-        BaguaCommOp {
-            name: String::from("decentralized_async_op"),
-            inner: comm_op,
-        }
+        comm_op
     }
 
     pub fn ready_for_comm(&self) -> bool {
