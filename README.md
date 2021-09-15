@@ -1,4 +1,4 @@
-`bagua-core`
+`bagua-core` has been merged into [Bagua](https://github.com/BaguaSys/bagua)!
 =====
 
 [![PyPI version](https://badge.fury.io/py/bagua-core.svg)](https://badge.fury.io/py/bagua-core) [![GitHub license](https://img.shields.io/github/license/BaguaSys/bagua-core)](https://github.com/BaguaSys/bagua-core/blob/master/LICENSE)
